@@ -21,7 +21,7 @@ class AppConfig:
     gap_size: int = 16
     header_height: int = 40
     left_panel_min_width: int = 250
-    left_panel_max_width: int = 400
+    left_panel_max_width: int = 300
     splitter_sizes: List[int] = None  # 默认在__post_init__中设置
     
     # 表格配置
