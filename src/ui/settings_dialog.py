@@ -22,8 +22,9 @@
 日期: 2026-01-09
 """
 
-from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QWidget, QFrame, QScrollArea)
+from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                             QPushButton, QWidget, QFrame, QScrollArea,
+                             QLineEdit, QFileDialog, QGridLayout)
 from PySide2.QtCore import Qt
 from app.config import config
 
@@ -57,8 +58,8 @@ class SettingsDialog(QDialog):
         # 设置对话框属性
         self.setWindowTitle("设置")
         self.setModal(True)  # 设置为模态对话框
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
+        self.setMinimumWidth(900)
+        self.setMinimumHeight(600)
         
         # 初始化UI
         self.init_ui()
@@ -92,7 +93,7 @@ class SettingsDialog(QDialog):
         content_layout.setSpacing(16)
         
         # =========================================
-        # 设置内容区域（预留接口）
+        # 设置内容区域
         # =========================================
         
         # 标题标签
@@ -108,11 +109,51 @@ class SettingsDialog(QDialog):
         separator.setObjectName("SettingsSeparator")
         content_layout.addWidget(separator)
         
-        # 占位标签 - 预留设置项接口
-        placeholder_label = QLabel("设置功能开发中...\n\n此处将添加各种设置选项，如：\n• 界面主题设置\n• 数据源配置\n• 导出选项\n• 其他高级设置")
-        placeholder_label.setAlignment(Qt.AlignCenter)
-        placeholder_label.setObjectName("SettingsPlaceholder")
-        content_layout.addWidget(placeholder_label)
+        # =========================================
+        # 文件设置分组
+        # =========================================
+        file_settings_frame = QFrame()
+        file_settings_frame.setObjectName("SettingsGroupFrame")
+        file_settings_layout = QVBoxLayout(file_settings_frame)
+        file_settings_layout.setContentsMargins(0, 0, 0, 0)
+        file_settings_layout.setSpacing(8)
+        
+        # 文件设置分组标题
+        file_settings_title = QLabel("文件设置")
+        file_settings_title.setObjectName("SettingsGroupTitle")
+        file_settings_layout.addWidget(file_settings_title)
+        
+        # 默认文件路径设置
+        default_path_container = QWidget()
+        default_path_layout = QHBoxLayout(default_path_container)
+        default_path_layout.setContentsMargins(0, 0, 0, 0)
+        default_path_layout.setSpacing(8)
+        
+        # 标签
+        default_path_label = QLabel("默认文件路径:")
+        default_path_label.setFixedWidth(80)
+        
+        # 路径输入框
+        self.default_path_edit = QLineEdit()
+        self.default_path_edit.setPlaceholderText("留空表示使用系统默认路径")
+        self.default_path_edit.setEnabled(False)
+        self.default_path_edit.setText(config.default_file_dialog_path)
+        
+        # 浏览按钮
+        self.btn_browse_default_path = QPushButton("···")
+        self.btn_browse_default_path.setCursor(Qt.PointingHandCursor)
+        self.btn_browse_default_path.setFixedWidth(40)
+        
+        # 组装默认路径设置
+        default_path_layout.addWidget(default_path_label)
+        default_path_layout.addWidget(self.default_path_edit, 1)
+        default_path_layout.addWidget(self.btn_browse_default_path)
+
+        file_settings_layout.addWidget(default_path_container)
+
+        
+        # 添加文件设置分组到内容布局
+        content_layout.addWidget(file_settings_frame)
         
         # 添加弹簧，将内容推到顶部
         content_layout.addStretch()
@@ -153,32 +194,47 @@ class SettingsDialog(QDialog):
         # 绑定按钮事件
         self.btn_ok.clicked.connect(self.accept)
         self.btn_cancel.clicked.connect(self.reject)
+        self.btn_browse_default_path.clicked.connect(self.browse_default_path)
+        
+    def browse_default_path(self):
+        """
+        浏览默认文件路径
+        
+        打开文件夹选择对话框，让用户选择默认的文件对话框路径。
+        """
+        # 打开文件夹选择对话框
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "选择默认文件路径",
+            self.default_path_edit.text() if self.default_path_edit.text() else ""
+        )
+        
+        # 如果用户选择了路径，更新输入框
+        if folder_path:
+            self.default_path_edit.setText(folder_path)
         
     def get_settings(self):
         """
-        获取当前设置值（预留接口）
+        获取当前设置值
         
         返回:
             dict: 包含所有设置值的字典
-        
-        注意：
-            此方法为预留接口，后续添加具体设置项后需要实现此方法。
         """
-        # 预留接口，暂时返回空字典
-        return {}
+        settings = {
+            "default_file_dialog_path": self.default_path_edit.text().strip()
+        }
+        return settings
         
     def set_settings(self, settings):
         """
-        设置界面值（预留接口）
+        设置界面值
         
         Args:
             settings: 包含设置值的字典
-        
-        注意：
-            此方法为预留接口，后续添加具体设置项后需要实现此方法。
         """
-        # 预留接口，暂时不实现具体功能
-        pass
+        # 设置默认文件路径
+        if "default_file_dialog_path" in settings:
+            self.default_path_edit.setText(settings["default_file_dialog_path"])
 
 
 if __name__ == "__main__":

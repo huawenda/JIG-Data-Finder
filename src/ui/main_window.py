@@ -369,7 +369,15 @@ class MainWindow(QMainWindow):
 
     def select_file(self):
         """选择文件"""
-        path, _ = QFileDialog.getOpenFileName(self, "选择 Excel", "", config.excel_file_filter)
+        # 使用配置的默认文件路径
+        default_path = config.default_file_dialog_path if config.default_file_dialog_path else ""
+        
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 Excel",
+            default_path,  # 设置默认路径
+            config.excel_file_filter
+        )
         if path:
             self.path_edit.setText(path)
 
@@ -593,9 +601,18 @@ class MainWindow(QMainWindow):
         
         # 根据用户操作处理结果
         if result == QDialog.Accepted:
-            # 用户点击了"确定"按钮
-            # 这里可以添加保存设置的逻辑（预留接口）
-            self.update_log("设置已保存")
+            # 用户点击了"确定"按钮，保存设置
+            settings = settings_dialog.get_settings()
+            
+            # 更新配置
+            config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
+            
+            # 保存配置到文件
+            try:
+                config.save()
+                self.update_log(f"设置已保存，默认文件路径: {config.default_file_dialog_path if config.default_file_dialog_path else '系统默认'}")
+            except Exception as e:
+                self.update_log(f"保存设置失败: {str(e)}")
         else:
             # 用户点击了"取消"按钮或关闭了对话框
             self.update_log("设置已取消")

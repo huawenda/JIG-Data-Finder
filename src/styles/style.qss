@@ -352,6 +352,14 @@ QLabel#SettingsPlaceholder {
     padding: 20px;
 }
 
+/* 设置分组标题样式 */
+QLabel#SettingsGroupTitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: #1E293B;
+    padding: 4px 0;
+}
+
 /* 设置按钮区域样式 */
 QFrame#SettingsButtonFrame {
     background-color: #FFFFFF;

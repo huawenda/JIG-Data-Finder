@@ -38,6 +38,7 @@ class AppConfig:
     # 文件配置
     default_export_filename: str = "查询结果.xlsx"
     excel_file_filter: str = "Excel Files (*.xlsx *.xls)"
+    default_file_dialog_path: str = ""  # 文件对话框默认路径，空字符串表示使用系统默认
     
     # 样式配置
     stylesheet_filename: str = "style.qss"
@@ -215,8 +216,8 @@ class AppConfig:
         return msg.format(**kwargs) if kwargs else msg
 
 
-# 全局配置实例
-config = AppConfig()
+# 全局配置实例 - 自动从配置文件加载，如果文件不存在则使用默认配置
+config = AppConfig.load()
 
 
 if __name__ == "__main__":
