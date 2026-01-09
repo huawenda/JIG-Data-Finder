@@ -1,0 +1,317 @@
+/* style.qss - 现代极简风格 */
+
+/* === 1. 全局字体与背景 === */
+QWidget {
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    color: #333333;
+}
+
+/* 整个窗口的背景色：浅灰 */
+QWidget#MainContent {
+    background-color: #F2F4F8;
+}
+
+/* === 2. 卡片化容器 === */
+QFrame#CardFrame {
+    background-color: #FFFFFF;  /* 纯白背景 */
+    border: 1px solid #E2E8F0;  /* 极淡的边框 */
+    border-radius: 8px;         /* 圆角 */
+}
+
+/* === 3. 标题文字 === */
+QLabel {
+    color: #475569; /* 深灰蓝 */
+}
+QLabel#SectionTitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: #1E293B;
+}
+
+/* === 4. 输入框优化 === */
+QLineEdit, QTextEdit,QPlainTextEdit {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 4px;
+    padding: 6px;
+    color: #334155;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid #3B82F6; /* 聚焦变蓝 */
+    background-color: #F8FAFC;
+}
+
+/* === 5. 按钮基础样式 === */
+QPushButton {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    color: #475569;
+    padding: 5px 15px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #F1F5F9;
+    border-color: #94A3B8;
+}
+
+/* === 6. 核心按钮：颜色加强 === */
+
+/* 蓝色按钮 (加载 & 查询) */
+QPushButton#btn_load, QPushButton#btn_query {
+    background-color: #2563EB;
+    border: 1px solid #2563EB;
+    color: #FFFFFF;
+}
+QPushButton#btn_load:hover, QPushButton#btn_query:hover {
+    background-color: #1D4ED8;
+}
+QPushButton#btn_load:pressed, QPushButton#btn_query:pressed {
+    background-color: #1E40AF;
+    padding-top: 6px;
+}
+QPushButton#btn_query:disabled {
+    background-color: #94A3B8;
+    border-color: #94A3B8;
+}
+
+/* 绿色按钮 (导出) */
+QPushButton#btn_export {
+    background-color: #10B981;
+    border: 1px solid #10B981;
+    color: #FFFFFF;
+}
+QPushButton#btn_export:hover {
+    background-color: #059669;
+}
+
+/* 红色按钮 (清空) */
+QPushButton#btn_clear {
+    background-color: #FEF2F2;
+    color: #EF4444;
+    border: 1px solid #FECACA;
+    font-size: 12px;
+}
+QPushButton#btn_clear:hover {
+    background-color: #FEE2E2;
+    border-color: #FCA5A5;
+}
+
+/* === 7. 表格深度美化 === */
+QTableView {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 4px;
+    gridline-color: #E2E8F0;
+    selection-background-color: #E0F2FE; /* 选中底色：淡蓝 */
+    selection-color: #0F172A; /* 选中文字：深黑 */
+}
+
+/* --- 表头容器样式 --- */
+/* 这里设置为白色，就能把右边多余的灰色区域变成白色 */
+QHeaderView {
+    background-color: #FFFFFF; 
+    border: none;
+
+}
+
+/* 表头 */
+QHeaderView::section {
+    background-color: #F8FAFC;
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #E2E8F0;
+    border-right: 1px solid #E2E8F0;
+    font-weight: bold;
+    color: #64748B;
+}
+QHeaderView::section:vertical {
+    background-color: #FFFFFF;
+    border-right: 1px solid #E2E8F0;
+}
+
+/* 滚动条隐藏背景 */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #CBD5E1;
+    min-height: 20px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #94A3B8;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* === 8. 分割器美化 (解决间距视觉问题) === */
+QSplitter::handle {
+    /* 设置为透明，让它看起来像空隙 */
+    background-color: transparent; 
+}
+
+/* 可选：鼠标悬停在空隙时，显示一点点颜色提示可以拖动 */
+QSplitter::handle:hover {
+    background-color: #E2E8F0; 
+}
+
+/* === 9. 表格滚动条补充 (防止列宽不自动缩放时太丑) === */
+QScrollBar:horizontal {
+    background: transparent;
+    height: 8px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: #CBD5E1;
+    min-width: 20px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #94A3B8;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* === 10. 自定义状态栏样式 === */
+QWidget#CustomStatusBar {
+    background-color: #F8FAFC; /* 浅灰底色 */
+    border: 1px solid #E2E8F0;
+    border-radius: 6px; 
+
+}
+
+/* 为状态标签设置特定样式 */
+QLabel#StatusLabel {
+    font-size: 11px;
+    color: #475569;
+}
+
+QLabel#LogLabel {
+    font-size: 11px;
+    color: #64748B;
+}
+
+/* === 11. 标签页样式 (TabWidget) === */
+QTabWidget::pane {
+    /* 1. 去除 Pane 的所有边框，解决"双重框线"问题 */
+    border: none;
+    
+    /* 2. 只保留一条顶部的浅灰分割线，用于区分 Tab栏和表格 */
+
+    
+    background: #FFFFFF;
+    /* 微调位置，确保分割线和 Tab 的底部蓝条完美衔接 */
+    top: -1px; 
+}
+
+QTabWidget::tab-bar {
+    /* 标签栏左对齐，留出一点间隙 */
+    left: 10px; 
+}
+
+QTabBar::tab {
+    background: transparent;
+    color: #64748B;
+    font-size: 13px;
+    font-weight: bold;
+    
+    /* === 核心修改：高度对齐 === */
+    /* 强制设置高度，使其与左侧 Header (40px) 视觉一致 */
+    /* 减去边框厚度，约等于 38px + 2px border */
+    height: 38px; 
+    padding: 0px 20px; /* 上下 padding 设为 0，完全靠 height 控制 */
+    
+    /* 预留底部线条位置 */
+    border-bottom: 2px solid transparent; 
+    margin-right: 2px;
+    
+    /* === 核心修改：去除弯曲 === */
+    /* 强制直角，去除所有圆角效果 */
+    border-radius: 0px;
+}
+
+/* 鼠标悬停状态 */
+QTabBar::tab:hover {
+    border-radius: 0px; /* 确保悬停时也是直角 */
+}
+
+/* 选中状态 */
+QTabBar::tab:selected {
+    color: #2563EB;
+    background-color: #FFFFFF;
+    
+    /* 底部蓝条 */
+    border-bottom: 2px solid #2563EB; 
+    
+    /* 向下延伸 1px，盖住 pane 的 border-top，形成一体化效果 */
+    margin-bottom: -1px; 
+}
+
+/* === 12. 进度条样式 === */
+QProgressBar {
+    /* [修改] 添加边框，让它不再与背景融为一体 */
+    border: 1px solid #CBD5E1;
+    
+    background-color: #FFFFFF; /* 槽的背景改为白色，显得更干净 */
+    border-radius: 3px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #2563EB;
+    /* [修改] 进度块稍微留一点内边距效果（可选，或者保持填满） */
+    border-radius: 2px;
+}
+
+/* === 13. 尺寸验证样式 === */
+
+/* 尺寸不匹配的文本样式（红色） */
+.size-mismatch {
+    color: #EF4444;
+    font-weight: bold;
+}
+
+/* 尺寸匹配的文本样式（绿色，可选） */
+.size-match {
+    color: #10B981;
+    font-weight: normal;
+}
+
+/* 开关控件样式 */
+QCheckBox#sizeValidationToggle {
+    font-size: 12px;
+    color: #475569;
+}
+
+QCheckBox#sizeValidationToggle::indicator {
+    width: 16px;
+    height: 16px;
+}
+
+QCheckBox#sizeValidationToggle::indicator:checked {
+    background-color: #2563EB;
+    border: 1px solid #2563EB;
+    border-radius: 3px;
+}
+
+QCheckBox#sizeValidationToggle::indicator:unchecked {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 3px;
+}
+
+QCheckBox#sizeValidationToggle::indicator:checked:hover {
+    background-color: #1D4ED8;
+    border-color: #1D4ED8;
+}
+
+QCheckBox#sizeValidationToggle::indicator:unchecked:hover {
+    background-color: #F1F5F9;
+    border-color: #94A3B8;
+}

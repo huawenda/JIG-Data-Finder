@@ -1,0 +1,60 @@
+# Python 编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python 虚拟环境
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 打包产物
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.spec
+
+# 测试覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+
+# Excel 文件（数据文件）
+*.xlsx
+*.xls
+
+# 图标文件（如果需要提交，请移除此行）
+*.ico
+
+# 配置文件（包含敏感信息）
+config.json
+config.example.json
+
+# 临时文件
+temp.xlsx
+*.tmp
+*.bak
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# Markdown 文档（如果需要提交文档，请移除此行）
+*.md
+*.txt
