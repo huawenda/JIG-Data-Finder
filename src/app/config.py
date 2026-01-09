@@ -70,6 +70,9 @@ class AppConfig:
     all_size_value: str = "All Size"  # 特殊尺寸值，表示所有尺寸都匹配
     size_mismatch_color: str = "#EF4444"  # 尺寸不匹配的文本颜色
 
+    # 剪贴板处理配置
+    clipboard_auto_process_enabled: bool = True  # 是否启用剪贴板自动处理功能
+
     # 错误消息配置
     error_messages: Dict[str, str] = None
     

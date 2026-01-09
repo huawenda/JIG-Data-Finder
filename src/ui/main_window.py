@@ -24,6 +24,7 @@ if src_dir not in sys.path:
 from core.worker import ExcelWorker
 from app.config import config
 from core.data_model import PandasModel
+from ui.jig_id_text_edit import JigIdTextEdit
 
 
 class MainWindow(QMainWindow):
@@ -155,9 +156,8 @@ class MainWindow(QMainWindow):
         left_header_layout.addStretch()
         left_header_layout.addWidget(self.btn_clear)
         
-        # Jig ID 多行文本输入框
-        self.input_text = QPlainTextEdit()
-        self.input_text.setPlaceholderText("在此处粘贴 Jig ID，每行一个...")
+        # Jig ID 多行文本输入框（使用自定义的JigIdTextEdit）
+        self.input_text = JigIdTextEdit()
         
         # 查询按钮
         self.btn_query = QPushButton("开始查询  >>")
