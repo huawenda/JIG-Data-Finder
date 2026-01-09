@@ -315,3 +315,69 @@ QCheckBox#sizeValidationToggle::indicator:unchecked:hover {
     background-color: #F1F5F9;
     border-color: #94A3B8;
 }
+
+/* === 14. 设置界面样式 === */
+
+/* 设置对话框整体样式 */
+QDialog {
+    background-color: #F2F4F8;
+}
+
+/* 设置内容区域样式 */
+QWidget#SettingsContent {
+    background-color: #FFFFFF;
+}
+
+/* 设置标题样式 */
+QLabel#SettingsTitle {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1E293B;
+    padding: 8px 0;
+}
+
+/* 设置分隔线样式 */
+QFrame#SettingsSeparator {
+    background-color: #E2E8F0;
+    border: none;
+    min-height: 1px;
+    max-height: 1px;
+}
+
+/* 设置占位符文本样式 */
+QLabel#SettingsPlaceholder {
+    font-size: 13px;
+    color: #64748B;
+    line-height: 1.5;
+    padding: 20px;
+}
+
+/* 设置按钮区域样式 */
+QFrame#SettingsButtonFrame {
+    background-color: #FFFFFF;
+    border-top: 1px solid #E2E8F0;
+}
+
+/* 设置确定按钮样式 */
+QPushButton#btn_ok {
+    background-color: #2563EB;
+    border: 1px solid #2563EB;
+    color: #FFFFFF;
+}
+QPushButton#btn_ok:hover {
+    background-color: #1D4ED8;
+}
+QPushButton#btn_ok:pressed {
+    background-color: #1E40AF;
+}
+
+/* 设置滚动区域样式 */
+QScrollArea {
+    border: none;
+    background-color: transparent;
+}
+QScrollArea > QWidget > QWidget {
+    background-color: transparent;
+}
+
+
