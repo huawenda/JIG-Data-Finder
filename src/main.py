@@ -5,40 +5,8 @@ JIG数据查询助手 - 主入口文件
 import sys
 import os
 
-# 获取资源路径（兼容开发环境和打包环境）
-def get_resource_path(relative_path):
-    """
-    获取资源文件路径（兼容开发环境和打包环境）
-    
-    Args:
-        relative_path: 相对路径
-        
-    Returns:
-        完整的资源文件路径
-    """
-    if getattr(sys, 'frozen', False):
-        # 打包后的环境：使用 sys._MEIPASS
-        base_path = sys._MEIPASS
-    else:
-        # 开发环境：使用脚本所在目录
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
-
-
-def get_icon_path():
-    """
-    获取应用图标路径（兼容开发环境和打包环境）
-    
-    Returns:
-        图标文件的完整路径
-    """
-    if getattr(sys, 'frozen', False):
-        # 打包后的环境：图标在 sys._MEIPASS 根目录
-        return os.path.join(sys._MEIPASS, 'new.ico')
-    else:
-        # 开发环境：图标在项目根目录
-        # 从 src/main.py 向上一级到达项目根目录
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'new.ico'))
+# 导入路径工具模块
+from utils.path_utils import get_resource_path, get_icon_path
 
 # 添加当前目录到Python路径，确保可以正确导入src模块
 sys.path.insert(0, get_resource_path("."))
