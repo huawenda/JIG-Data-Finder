@@ -515,7 +515,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "当前页面没有可导出的数据")
             return
 
-        path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_name, config.excel_file_filter)
+        # 构建默认保存路径
+        default_path = default_name
+        if config.default_export_path:
+            # 如果有配置的默认导出路径，组合成完整路径
+            default_path = os.path.join(config.default_export_path, default_name)
+
+        path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_path, config.excel_file_filter)
         if path:
             try:
                 target_df.to_excel(path, index=False)
@@ -595,11 +601,12 @@ class MainWindow(QMainWindow):
             
             # 更新配置
             config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
+            config.default_export_path = settings.get("default_export_path", "")
             
             # 保存配置到文件
             try:
                 config.save()
-                self.update_log(f"设置已保存，默认文件路径: {config.default_file_dialog_path if config.default_file_dialog_path else '系统默认'}")
+                self.update_log(f"设置已保存，默认文件路径: {config.default_file_dialog_path if config.default_file_dialog_path else '系统默认'}，默认导出路径: {config.default_export_path if config.default_export_path else '系统默认'}")
             except Exception as e:
                 self.update_log(f"保存设置失败: {str(e)}")
         else:

@@ -159,6 +159,34 @@ class SettingsDialog(QDialog):
         default_path_layout.addWidget(self.btn_browse_default_path)
 
         file_settings_layout.addWidget(default_path_container)
+        
+        # 默认导出路径设置
+        default_export_path_container = QWidget()
+        default_export_path_layout = QHBoxLayout(default_export_path_container)
+        default_export_path_layout.setContentsMargins(0, 0, 0, 0)
+        default_export_path_layout.setSpacing(8)
+        
+        # 标签
+        default_export_path_label = QLabel("默认导出路径:")
+        default_export_path_label.setFixedWidth(80)
+        
+        # 路径输入框
+        self.default_export_path_edit = QLineEdit()
+        self.default_export_path_edit.setPlaceholderText("留空表示使用系统默认路径")
+        self.default_export_path_edit.setEnabled(False)
+        self.default_export_path_edit.setText(config.default_export_path)
+        
+        # 浏览按钮
+        self.btn_browse_default_export_path = QPushButton("···")
+        self.btn_browse_default_export_path.setCursor(Qt.PointingHandCursor)
+        self.btn_browse_default_export_path.setFixedWidth(40)
+        
+        # 组装默认导出路径设置
+        default_export_path_layout.addWidget(default_export_path_label)
+        default_export_path_layout.addWidget(self.default_export_path_edit, 1)
+        default_export_path_layout.addWidget(self.btn_browse_default_export_path)
+
+        file_settings_layout.addWidget(default_export_path_container)
 
         
         # 添加文件设置分组到内容布局
@@ -204,6 +232,7 @@ class SettingsDialog(QDialog):
         self.btn_ok.clicked.connect(self.accept)
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_browse_default_path.clicked.connect(self.browse_default_path)
+        self.btn_browse_default_export_path.clicked.connect(self.browse_default_export_path)
         
     def browse_default_path(self):
         """
@@ -221,6 +250,23 @@ class SettingsDialog(QDialog):
         # 如果用户选择了路径，更新输入框
         if folder_path:
             self.default_path_edit.setText(folder_path)
+    
+    def browse_default_export_path(self):
+        """
+        浏览默认导出路径
+        
+        打开文件夹选择对话框，让用户选择默认的导出文件保存路径。
+        """
+        # 打开文件夹选择对话框
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "选择默认导出路径",
+            self.default_export_path_edit.text() if self.default_export_path_edit.text() else ""
+        )
+        
+        # 如果用户选择了路径，更新输入框
+        if folder_path:
+            self.default_export_path_edit.setText(folder_path)
         
     def get_settings(self):
         """
@@ -230,7 +276,8 @@ class SettingsDialog(QDialog):
             dict: 包含所有设置值的字典
         """
         settings = {
-            "default_file_dialog_path": self.default_path_edit.text().strip()
+            "default_file_dialog_path": self.default_path_edit.text().strip(),
+            "default_export_path": self.default_export_path_edit.text().strip()
         }
         return settings
         
@@ -244,6 +291,10 @@ class SettingsDialog(QDialog):
         # 设置默认文件路径
         if "default_file_dialog_path" in settings:
             self.default_path_edit.setText(settings["default_file_dialog_path"])
+        
+        # 设置默认导出路径
+        if "default_export_path" in settings:
+            self.default_export_path_edit.setText(settings["default_export_path"])
 
 
 if __name__ == "__main__":

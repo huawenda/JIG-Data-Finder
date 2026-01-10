@@ -39,6 +39,7 @@ class AppConfig:
     default_export_filename: str = "查询结果.xlsx"
     excel_file_filter: str = "Excel Files (*.xlsx *.xls)"
     default_file_dialog_path: str = ""  # 文件对话框默认路径，空字符串表示使用系统默认
+    default_export_path: str = ""  # 导出文件默认保存路径，空字符串表示使用系统默认
     
     # 样式配置
     stylesheet_filename: str = "style.qss"
