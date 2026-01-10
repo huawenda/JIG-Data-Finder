@@ -38,6 +38,7 @@ class AppConfig:
     # 文件配置
     default_export_filename: str = "查询结果.xlsx"
     excel_file_filter: str = "Excel Files (*.xlsx *.xls)"
+    default_file_dialog_path: str = ""  # 文件对话框默认路径，空字符串表示使用系统默认
     
     # 样式配置
     stylesheet_filename: str = "style.qss"
@@ -69,6 +70,9 @@ class AppConfig:
     size_special_mappings: Dict[str, str] = None  # 特殊尺寸映射，如{"65": "65/55"}
     all_size_value: str = "All Size"  # 特殊尺寸值，表示所有尺寸都匹配
     size_mismatch_color: str = "#EF4444"  # 尺寸不匹配的文本颜色
+
+    # 剪贴板处理配置
+    clipboard_auto_process_enabled: bool = True  # 是否启用剪贴板自动处理功能
 
     # 错误消息配置
     error_messages: Dict[str, str] = None
@@ -212,8 +216,8 @@ class AppConfig:
         return msg.format(**kwargs) if kwargs else msg
 
 
-# 全局配置实例
-config = AppConfig()
+# 全局配置实例 - 自动从配置文件加载，如果文件不存在则使用默认配置
+config = AppConfig.load()
 
 
 if __name__ == "__main__":

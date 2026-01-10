@@ -6,24 +6,23 @@ import sys
 import os
 import pandas as pd
 from PySide2.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QProgressBar,
-                             QLabel, QLineEdit, QPushButton, QTableView, QPlainTextEdit,QComboBox,
+                             QLabel, QLineEdit, QPushButton, QTableView,QComboBox,
                              QFileDialog, QSplitter, QMessageBox, QFrame, QHeaderView,QTabWidget,
-                             QCheckBox)
+                             QCheckBox, QDialog)
 from PySide2.QtCore import Qt, QThread, Signal
-from PySide2.QtGui import QIcon
-
-# 导入路径工具模块
-from utils.path_utils import get_icon_path
 
 # 添加src目录到路径，以便可以导入其他模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.dirname(os.path.dirname(current_dir))
+src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
+# 导入路径工具模块
 from core.worker import ExcelWorker
 from app.config import config
 from core.data_model import PandasModel
+from ui.jig_id_text_edit import JigIdTextEdit
+from ui.settings_dialog import SettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -39,14 +38,6 @@ class MainWindow(QMainWindow):
         
         # 使用 Windows 原生窗口框架
         self.setWindowFlags(Qt.Window)
-        
-        # 设置窗口图标
-        icon_path = get_icon_path()
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-            print(f"成功加载窗口图标: {icon_path}")
-        else:
-            print(f"警告: 窗口图标文件不存在: {icon_path}")
         
         # 创建主内容容器作为 centralWidget
         self.content_widget = QWidget()
@@ -116,11 +107,17 @@ class MainWindow(QMainWindow):
         self.btn_load.setCursor(Qt.PointingHandCursor)
         self.btn_load.setFixedWidth(100)
         
+        # 设置按钮
+        self.btn_settings = QPushButton("设置")
+        self.btn_settings.setCursor(Qt.PointingHandCursor)
+        self.btn_settings.setFixedWidth(80)
+        
         # 组装顶部布局
         top_layout.addWidget(QLabel("源文件:"))
         top_layout.addWidget(self.path_edit, 1)
         top_layout.addWidget(self.btn_browse)
         top_layout.addWidget(self.btn_load)
+        top_layout.addWidget(self.btn_settings)
         
         # =========================================
         # 第二部分：中间分栏区（左右分栏布局）
@@ -155,9 +152,8 @@ class MainWindow(QMainWindow):
         left_header_layout.addStretch()
         left_header_layout.addWidget(self.btn_clear)
         
-        # Jig ID 多行文本输入框
-        self.input_text = QPlainTextEdit()
-        self.input_text.setPlaceholderText("在此处粘贴 Jig ID，每行一个...")
+        # Jig ID 多行文本输入框（使用自定义的JigIdTextEdit）
+        self.input_text = JigIdTextEdit()
         
         # 查询按钮
         self.btn_query = QPushButton("开始查询  >>")
@@ -329,6 +325,7 @@ class MainWindow(QMainWindow):
         self.btn_query.clicked.connect(self.start_query)
         self.btn_export.clicked.connect(self.export_excel)
         self.btn_clear.clicked.connect(self.on_clear)
+        self.btn_settings.clicked.connect(self.show_settings)  # 设置按钮点击事件
         self.tabs.currentChanged.connect(self.on_tab_changed) # 监听标签切换
         self.size_validation_checkbox.stateChanged.connect(self.on_size_validation_changed) # 尺寸验证开关
         
@@ -361,7 +358,15 @@ class MainWindow(QMainWindow):
 
     def select_file(self):
         """选择文件"""
-        path, _ = QFileDialog.getOpenFileName(self, "选择 Excel", "", config.excel_file_filter)
+        # 使用配置的默认文件路径
+        default_path = config.default_file_dialog_path if config.default_file_dialog_path else ""
+        
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 Excel",
+            default_path,  # 设置默认路径
+            config.excel_file_filter
+        )
         if path:
             self.path_edit.setText(path)
 
@@ -569,9 +574,66 @@ class MainWindow(QMainWindow):
         # 更新日志
         status = "启用" if enabled else "禁用"
         self.update_log(f"尺寸验证功能已{status}")
+    
+    def show_settings(self):
+        """
+        显示设置对话框
+        
+        此方法处理设置按钮的点击事件，创建并显示设置对话框。
+        对话框采用模态显示，确保设置界面显示时主窗口不可操作。
+        """
+        # 创建设置对话框
+        settings_dialog = SettingsDialog(self)
+        
+        # 显示对话框并等待用户操作
+        result = settings_dialog.exec_()
+        
+        # 根据用户操作处理结果
+        if result == QDialog.Accepted:
+            # 用户点击了"确定"按钮，保存设置
+            settings = settings_dialog.get_settings()
+            
+            # 更新配置
+            config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
+            
+            # 保存配置到文件
+            try:
+                config.save()
+                self.update_log(f"设置已保存，默认文件路径: {config.default_file_dialog_path if config.default_file_dialog_path else '系统默认'}")
+            except Exception as e:
+                self.update_log(f"保存设置失败: {str(e)}")
+        else:
+            # 用户点击了"取消"按钮或关闭了对话框
+            self.update_log("设置已取消")
 
     def closeEvent(self, event):
         """关闭事件处理"""
         self.thread.quit()
         self.thread.wait()
         event.accept()
+
+
+if __name__ == "__main__":
+    # 测试代码
+    import sys
+    from PySide2.QtWidgets import QApplication
+    
+    app = QApplication(sys.argv)
+
+    qss_path = os.path.join(src_dir, 'styles', 'style.qss')
+    
+    if os.path.exists(qss_path):
+        try:
+            # 读取 QSS 文件并应用
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                style_sheet = f.read()
+                app.setStyleSheet(style_sheet)
+            print(f"成功加载样式表: {qss_path}")
+        except Exception as e:
+            print(f"样式表加载失败: {e}")
+    else:
+        print(f"警告: 找不到样式文件 {qss_path}")
+
+    Window = MainWindow()
+    Window.show()
+    sys.exit(app.exec_())

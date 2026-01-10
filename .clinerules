@@ -20,4 +20,4 @@
 - 此项目使用 anaconda3 虚拟 python 环境：(pyside2_env)
 - 项目路径：C:\Users\winder\Documents\Virtual Machines\Windows 7 enterprise sp1 x86\share\JIG Data Finder
 - python 解释器路径：D:/anaconda3/envs/pyside2_env/python.exe
-- 脚本中包含中文时使用 UTF-8 编码，避免中文乱码
+- 编写脚本时使用 ASCII 字符而不是 Unicode 字符
