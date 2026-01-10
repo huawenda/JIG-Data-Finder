@@ -13,7 +13,7 @@ class AppConfig:
     """应用程序配置类"""
     
     # 窗口配置
-    window_title: str = "JIG Data Finder 1.0"
+    window_title: str = "JIG Data Finder"
     window_size: tuple = (1500, 900)
     window_padding: int = 8 # 增加边缘检测距离，改善鼠标缩放标志显示
     
@@ -29,6 +29,8 @@ class AppConfig:
     table_default_column_width: int = 106 # 默认列宽
     adaptive_columns: List[str] = None  # 自适应宽度指定列
     table_default_row_height: int = 30 # 默认行高 (建议 32-36 之间，视觉较舒适)
+    table_row_height_min: int = 20   # 最小行高
+    table_row_height_max: int = 30   # 最大行高
 
     # 数据配置
     output_columns: List[str] = None  # 输出列顺序
@@ -50,7 +52,7 @@ class AppConfig:
     pivot_value_col: str = "Jig ID"  # 透视表的数值列 (源数据中的列名)
     pivot_column_key: str = "工程名"  # 透视表的列分组依据 (源数据中的列名)
     # 工程配置 (工程名称 -> {Info})
-    engineering_config: Dict[str, Dict] = None  # 作用：1.定义排序顺序(order)
+    engineering_config: Dict[str, Dict] = None  # 作用：定义排序顺序(order)
     pivot_exclude_names: List[str] = None  # 透视表排除的工程名称列表
     production_indicator_code: str = "50000" # 生产中判定的关键工程代码
 

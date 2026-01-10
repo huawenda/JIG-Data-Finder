@@ -33,7 +33,7 @@ if src_dir not in sys.path:
 
 from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QWidget, QFrame, QScrollArea,
-                             QLineEdit, QFileDialog)
+                             QLineEdit, QFileDialog, QSpinBox)
 from PySide2.QtCore import Qt
 from app.config import config
 
@@ -192,6 +192,51 @@ class SettingsDialog(QDialog):
         # 添加文件设置分组到内容布局
         content_layout.addWidget(file_settings_frame)
         
+        # =========================================
+        # 界面设置分组
+        # =========================================
+        ui_settings_frame = QFrame()
+        ui_settings_frame.setObjectName("SettingsGroupFrame")
+        ui_settings_layout = QVBoxLayout(ui_settings_frame)
+        ui_settings_layout.setContentsMargins(0, 0, 0, 0)
+        ui_settings_layout.setSpacing(8)
+        
+        # 界面设置分组标题
+        ui_settings_title = QLabel("界面设置")
+        ui_settings_title.setObjectName("SettingsGroupTitle")
+        ui_settings_layout.addWidget(ui_settings_title)
+        
+        # 表格行高设置
+        row_height_container = QWidget()
+        row_height_layout = QHBoxLayout(row_height_container)
+        row_height_layout.setContentsMargins(0, 0, 0, 0)
+        row_height_layout.setSpacing(8)
+        
+        # 标签
+        row_height_label = QLabel("表格行高:")
+        row_height_label.setFixedWidth(80)
+        
+        # 行高输入框
+        self.row_height_spinbox = QSpinBox()
+        self.row_height_spinbox.setRange(config.table_row_height_min, config.table_row_height_max)
+        self.row_height_spinbox.setValue(config.table_default_row_height)
+        self.row_height_spinbox.setFixedWidth(80)  # 限制宽度为100px
+        
+        # 组装行高设置
+        row_height_layout.addWidget(row_height_label)
+        row_height_layout.addWidget(self.row_height_spinbox)  # 移除stretch参数
+        
+        # 提醒标签
+        restart_tip = QLabel("(保存后需重启软件生效)")
+        restart_tip.setStyleSheet("color: #666; font-size: 11px;")
+        row_height_layout.addWidget(restart_tip)
+        
+        row_height_layout.addStretch()  # 添加弹簧，确保输入框靠左对齐
+        ui_settings_layout.addWidget(row_height_container)
+        
+        # 添加界面设置分组到内容布局
+        content_layout.addWidget(ui_settings_frame)
+        
         # 添加弹簧，将内容推到顶部
         content_layout.addStretch()
         
@@ -277,7 +322,8 @@ class SettingsDialog(QDialog):
         """
         settings = {
             "default_file_dialog_path": self.default_path_edit.text().strip(),
-            "default_export_path": self.default_export_path_edit.text().strip()
+            "default_export_path": self.default_export_path_edit.text().strip(),
+            "table_default_row_height": self.row_height_spinbox.value()
         }
         return settings
         
@@ -295,6 +341,10 @@ class SettingsDialog(QDialog):
         # 设置默认导出路径
         if "default_export_path" in settings:
             self.default_export_path_edit.setText(settings["default_export_path"])
+        
+        # 设置表格行高
+        if "table_default_row_height" in settings:
+            self.row_height_spinbox.setValue(settings["table_default_row_height"])
 
 
 if __name__ == "__main__":

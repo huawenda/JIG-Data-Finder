@@ -602,16 +602,14 @@ class MainWindow(QMainWindow):
             # 更新配置
             config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
             config.default_export_path = settings.get("default_export_path", "")
+            config.table_default_row_height = settings.get("table_default_row_height", config.table_default_row_height)
             
             # 保存配置到文件
             try:
                 config.save()
-                self.update_log(f"设置已保存，默认文件路径: {config.default_file_dialog_path if config.default_file_dialog_path else '系统默认'}，默认导出路径: {config.default_export_path if config.default_export_path else '系统默认'}")
+                self.update_log("设置已保存")
             except Exception as e:
                 self.update_log(f"保存设置失败: {str(e)}")
-        else:
-            # 用户点击了"取消"按钮或关闭了对话框
-            self.update_log("设置已取消")
 
     def closeEvent(self, event):
         """关闭事件处理"""
