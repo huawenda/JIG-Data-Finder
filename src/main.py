@@ -13,8 +13,6 @@ sys.path.insert(0, get_resource_path("."))
 
 from PySide2.QtWidgets import QApplication
 from PySide2.QtGui import QIcon
-
-# 因为src目录已添加到sys.path，所以可以直接导入子模块
 from ui.main_window import MainWindow
 from app.config import config
 

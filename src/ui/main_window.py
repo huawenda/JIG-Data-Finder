@@ -6,21 +6,18 @@ import sys
 import os
 import pandas as pd
 from PySide2.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QProgressBar,
-                             QLabel, QLineEdit, QPushButton, QTableView, QPlainTextEdit,QComboBox,
+                             QLabel, QLineEdit, QPushButton, QTableView,QComboBox,
                              QFileDialog, QSplitter, QMessageBox, QFrame, QHeaderView,QTabWidget,
                              QCheckBox, QDialog)
 from PySide2.QtCore import Qt, QThread, Signal
-from PySide2.QtGui import QIcon
-
-# 导入路径工具模块
-from utils.path_utils import get_icon_path
 
 # 添加src目录到路径，以便可以导入其他模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.dirname(os.path.dirname(current_dir))
+src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
+# 导入路径工具模块
 from core.worker import ExcelWorker
 from app.config import config
 from core.data_model import PandasModel
@@ -41,14 +38,6 @@ class MainWindow(QMainWindow):
         
         # 使用 Windows 原生窗口框架
         self.setWindowFlags(Qt.Window)
-        
-        # 设置窗口图标
-        icon_path = get_icon_path()
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-            print(f"成功加载窗口图标: {icon_path}")
-        else:
-            print(f"警告: 窗口图标文件不存在: {icon_path}")
         
         # 创建主内容容器作为 centralWidget
         self.content_widget = QWidget()
@@ -622,3 +611,29 @@ class MainWindow(QMainWindow):
         self.thread.quit()
         self.thread.wait()
         event.accept()
+
+
+if __name__ == "__main__":
+    # 测试代码
+    import sys
+    from PySide2.QtWidgets import QApplication
+    
+    app = QApplication(sys.argv)
+
+    qss_path = os.path.join(src_dir, 'styles', 'style.qss')
+    
+    if os.path.exists(qss_path):
+        try:
+            # 读取 QSS 文件并应用
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                style_sheet = f.read()
+                app.setStyleSheet(style_sheet)
+            print(f"成功加载样式表: {qss_path}")
+        except Exception as e:
+            print(f"样式表加载失败: {e}")
+    else:
+        print(f"警告: 找不到样式文件 {qss_path}")
+
+    Window = MainWindow()
+    Window.show()
+    sys.exit(app.exec_())

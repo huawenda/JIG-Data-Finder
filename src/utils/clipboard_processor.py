@@ -43,11 +43,13 @@ class ClipboardProcessor:
     
     def __init__(self):
         """初始化剪贴板处理器"""
-        # JIG ID正则表达式：CJ开头后跟10位，C4M开头后跟9位，总共12位
+        # JIG ID正则表达式：
+        # 1. CJ开头后跟10位，总共12位，最后两位必须是数字且不能是"00"（排除Lot ID）
+        # 2. C4M开头后跟9位，总共12位
         # 使用负向先行断言确保前面不是字母数字，后面不是字母数字
-        self.jig_id_pattern = re.compile(r'(?<![A-Za-z0-9])(CJ[A-Z0-9]{10}|C4M[A-Z0-9]{9})(?![A-Za-z0-9])')
+        self.jig_id_pattern = re.compile(r'(?<![A-Za-z0-9])(CJ[A-Z0-9]{8}(?!00)[0-9]{2}|C4M[A-Z0-9]{9})(?![A-Za-z0-9])')
         # 用于完整匹配的正则表达式
-        self.jig_id_full_pattern = re.compile(r'^(CJ[A-Z0-9]{10}|C4M[A-Z0-9]{9})$')
+        self.jig_id_full_pattern = re.compile(r'^(CJ[A-Z0-9]{8}(?!00)[0-9]{2}|C4M[A-Z0-9]{9})$')
     
     def extract_jig_ids(self, text: str) -> List[str]:
         """

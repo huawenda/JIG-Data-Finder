@@ -22,9 +22,18 @@
 日期: 2026-01-09
 """
 
+import sys
+import os
+
+# 添加src目录到路径，以便可以导入其他模块
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(current_dir)
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
+
 from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QWidget, QFrame, QScrollArea,
-                             QLineEdit, QFileDialog, QGridLayout)
+                             QLineEdit, QFileDialog)
 from PySide2.QtCore import Qt
 from app.config import config
 
@@ -239,10 +248,25 @@ class SettingsDialog(QDialog):
 
 if __name__ == "__main__":
     # 测试代码
-    import sys
     from PySide2.QtWidgets import QApplication
-    
+
     app = QApplication(sys.argv)
+
+    qss_path = os.path.join(src_dir, 'styles', 'style.qss')
+    
+    if os.path.exists(qss_path):
+        try:
+            # 读取 QSS 文件并应用
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                style_sheet = f.read()
+                app.setStyleSheet(style_sheet)
+            print(f"成功加载样式表: {qss_path}")
+        except Exception as e:
+            print(f"样式表加载失败: {e}")
+    else:
+        print(f"警告: 找不到样式文件 {qss_path}")
+    
+    
     dialog = SettingsDialog()
     dialog.show()
     sys.exit(app.exec_())
