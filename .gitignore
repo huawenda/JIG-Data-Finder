@@ -29,6 +29,7 @@ htmlcov/
 .vscode/
 .idea/
 plans/
+.trae/
 *.swp
 *.swo
 *~
@@ -46,7 +47,7 @@ plans/
 # 配置文件（包含敏感信息）
 config.json
 config.example.json
-.traerules
+.clinerules
 
 # 临时文件
 temp.xlsx
@@ -60,3 +61,4 @@ Thumbs.db
 # Markdown 文档（如果需要提交文档，请移除此行）
 *.md
 *.txt
+

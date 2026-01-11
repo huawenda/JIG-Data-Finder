@@ -67,7 +67,7 @@ class AppConfig:
     keyword_total: str = "总计"
 
     # 尺寸验证配置
-    size_validation_enabled: bool = True  # 默认开启尺寸验证
+    size_validation_enabled: bool = False  # 默认关闭尺寸验证
     pn_extract_start: int = 6  # P/N提取起始位置（0-based索引）
     pn_extract_length: int = 4  # 提取长度
     size_special_mappings: Dict[str, str] = None  # 特殊尺寸映射，如{"65": "65/55"}

@@ -33,7 +33,7 @@ if src_dir not in sys.path:
 
 from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QWidget, QFrame, QScrollArea,
-                             QLineEdit, QFileDialog, QSpinBox, QCheckBox)
+                             QLineEdit, QFileDialog, QSpinBox, QCheckBox, QComboBox)
 from PySide2.QtCore import Qt
 from app.config import config
 
@@ -308,6 +308,32 @@ class SettingsDialog(QDialog):
         
         feature_settings_layout.addWidget(clipboard_container)
         
+        # 尺寸验证默认状态设置
+        size_validation_container = QWidget()
+        size_validation_layout = QHBoxLayout(size_validation_container)
+        size_validation_layout.setContentsMargins(0, 0, 0, 0)
+        size_validation_layout.setSpacing(8)
+        
+        # 标签
+        size_validation_label = QLabel("尺寸验证默认状态:")
+        size_validation_label.setFixedWidth(110)
+        
+        # 下拉框
+        self.size_validation_combo = QComboBox()
+        self.size_validation_combo.addItems(["开启", "关闭"])
+        self.size_validation_combo.setFixedWidth(55)
+        self.size_validation_combo.setCursor(Qt.PointingHandCursor)
+        # 根据配置设置当前选中项
+        current_index = 0 if config.size_validation_enabled else 1
+        self.size_validation_combo.setCurrentIndex(current_index)
+        
+        # 组装布局
+        size_validation_layout.addWidget(size_validation_label)
+        size_validation_layout.addWidget(self.size_validation_combo)
+        size_validation_layout.addStretch()  # 添加弹簧，确保控件靠左对齐
+        
+        feature_settings_layout.addWidget(size_validation_container)
+        
         # 添加功能开关分组到内容布局
         content_layout.addWidget(feature_settings_frame)
         
@@ -399,7 +425,8 @@ class SettingsDialog(QDialog):
             "default_export_path": self.default_export_path_edit.text().strip(),
             "table_default_row_height": self.row_height_spinbox.value(),
             "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value()),
-            "clipboard_auto_process_enabled": self.clipboard_auto_process_checkbox.isChecked()
+            "clipboard_auto_process_enabled": self.clipboard_auto_process_checkbox.isChecked(),
+            "size_validation_enabled": self.size_validation_combo.currentText() == "开启"
         }
         return settings
         
@@ -431,6 +458,11 @@ class SettingsDialog(QDialog):
         # 设置剪贴板自动处理开关
         if "clipboard_auto_process_enabled" in settings:
             self.clipboard_auto_process_checkbox.setChecked(settings["clipboard_auto_process_enabled"])
+        
+        # 设置尺寸验证默认状态
+        if "size_validation_enabled" in settings:
+            current_index = 0 if settings["size_validation_enabled"] else 1
+            self.size_validation_combo.setCurrentIndex(current_index)
 
 
 if __name__ == "__main__":

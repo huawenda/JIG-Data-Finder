@@ -570,8 +570,8 @@ class MainWindow(QMainWindow):
         """
         enabled = (state == Qt.Checked)
         
-        # 更新配置
-        config.size_validation_enabled = enabled
+        # 注意：运行期间的开关状态不更新配置
+        # 只影响当前会话的功能状态，不改变默认状态
         
         # 如果当前有明细表模型，更新其尺寸验证状态
         if self.current_detail_model is not None:
@@ -604,6 +604,7 @@ class MainWindow(QMainWindow):
             config.default_export_path = settings.get("default_export_path", "")
             config.table_default_row_height = settings.get("table_default_row_height", config.table_default_row_height)
             config.clipboard_auto_process_enabled = settings.get("clipboard_auto_process_enabled", config.clipboard_auto_process_enabled)
+            config.size_validation_enabled = settings.get("size_validation_enabled", config.size_validation_enabled)
             
             # 更新窗口大小
             if "window_size" in settings:
@@ -612,6 +613,9 @@ class MainWindow(QMainWindow):
                     config.window_size = new_window_size
                     # 立即应用新的窗口大小
                     self.resize(*new_window_size)
+            
+            # 注意：尺寸验证默认状态配置只保存，不立即应用到界面
+            # 只在软件启动时应用默认状态，运行期间用户可自由切换
             
             # 保存配置到文件
             try:
