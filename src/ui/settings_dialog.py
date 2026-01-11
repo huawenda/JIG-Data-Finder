@@ -33,7 +33,7 @@ if src_dir not in sys.path:
 
 from PySide2.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QWidget, QFrame, QScrollArea,
-                             QLineEdit, QFileDialog, QSpinBox)
+                             QLineEdit, QFileDialog, QSpinBox, QCheckBox)
 from PySide2.QtCore import Qt
 from app.config import config
 
@@ -272,6 +272,45 @@ class SettingsDialog(QDialog):
         # 添加界面设置分组到内容布局
         content_layout.addWidget(ui_settings_frame)
         
+        # =========================================
+        # 功能开关分组
+        # =========================================
+        feature_settings_frame = QFrame()
+        feature_settings_frame.setObjectName("SettingsGroupFrame")
+        feature_settings_layout = QVBoxLayout(feature_settings_frame)
+        feature_settings_layout.setContentsMargins(0, 0, 0, 0)
+        feature_settings_layout.setSpacing(8)
+        
+        # 功能开关分组标题
+        feature_settings_title = QLabel("功能开关")
+        feature_settings_title.setObjectName("SettingsGroupTitle")
+        feature_settings_layout.addWidget(feature_settings_title)
+        
+        # 剪贴板自动处理开关
+        clipboard_container = QWidget()
+        clipboard_layout = QHBoxLayout(clipboard_container)
+        clipboard_layout.setContentsMargins(0, 0, 0, 0)
+        clipboard_layout.setSpacing(8)
+        
+        # 标签
+        clipboard_label = QLabel("剪贴板自动处理:")
+        clipboard_label.setFixedWidth(100)
+        
+        # 复选框
+        self.clipboard_auto_process_checkbox = QCheckBox("启用")
+        self.clipboard_auto_process_checkbox.setChecked(config.clipboard_auto_process_enabled)
+        self.clipboard_auto_process_checkbox.setCursor(Qt.PointingHandCursor)
+        
+        # 组装布局
+        clipboard_layout.addWidget(clipboard_label)
+        clipboard_layout.addWidget(self.clipboard_auto_process_checkbox)
+        clipboard_layout.addStretch()  # 添加弹簧，确保控件靠左对齐
+        
+        feature_settings_layout.addWidget(clipboard_container)
+        
+        # 添加功能开关分组到内容布局
+        content_layout.addWidget(feature_settings_frame)
+        
         # 添加弹簧，将内容推到顶部
         content_layout.addStretch()
         
@@ -359,7 +398,8 @@ class SettingsDialog(QDialog):
             "default_file_dialog_path": self.default_path_edit.text().strip(),
             "default_export_path": self.default_export_path_edit.text().strip(),
             "table_default_row_height": self.row_height_spinbox.value(),
-            "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value())
+            "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value()),
+            "clipboard_auto_process_enabled": self.clipboard_auto_process_checkbox.isChecked()
         }
         return settings
         
@@ -387,6 +427,10 @@ class SettingsDialog(QDialog):
             width, height = settings["window_size"]
             self.window_width_spinbox.setValue(width)
             self.window_height_spinbox.setValue(height)
+        
+        # 设置剪贴板自动处理开关
+        if "clipboard_auto_process_enabled" in settings:
+            self.clipboard_auto_process_checkbox.setChecked(settings["clipboard_auto_process_enabled"])
 
 
 if __name__ == "__main__":

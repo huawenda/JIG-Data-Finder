@@ -28,6 +28,7 @@ htmlcov/
 # IDE 配置
 .vscode/
 .idea/
+plans/
 *.swp
 *.swo
 *~
@@ -45,6 +46,7 @@ htmlcov/
 # 配置文件（包含敏感信息）
 config.json
 config.example.json
+.traerules
 
 # 临时文件
 temp.xlsx

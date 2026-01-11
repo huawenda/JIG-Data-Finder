@@ -603,6 +603,7 @@ class MainWindow(QMainWindow):
             config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
             config.default_export_path = settings.get("default_export_path", "")
             config.table_default_row_height = settings.get("table_default_row_height", config.table_default_row_height)
+            config.clipboard_auto_process_enabled = settings.get("clipboard_auto_process_enabled", config.clipboard_auto_process_enabled)
             
             # 更新窗口大小
             if "window_size" in settings:

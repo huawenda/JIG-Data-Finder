@@ -29,7 +29,7 @@
 3. **通俗易懂**：避免使用过于晦涩的 Python 高级语法（如复杂的装饰器或深层闭包），优先使用可读性强的基础语法。
 4. **异常处理**：涉及到文件读写、网络请求等操作时，必须添加 `try-except` 错误捕获，并通过 `QMessageBox` 弹出中文提示。
 
-# 注意事项
+# **注意事项（重要）**
 - 此项目使用 anaconda3 虚拟 python 环境：(pyside2_env)
 - 项目路径：C:\Users\winder\Documents\Virtual Machines\Windows 7 enterprise sp1 x86\share\JIG Data Finder
 - python 解释器路径：D:/anaconda3/envs/pyside2_env/python.exe
@@ -37,6 +37,6 @@
 - 在修改大型文件前，先简要说明你的修改计划。
 - 生成文档前询问我是否需要
 
-# 学习辅助（重要）
+# 学习辅助
 - 当引入我不熟悉的库或 Qt 核心概念（如 信号与槽 Signal/Slot、多线程 QThread）时，请在代码下方简要说明其工作原理，帮助我学习。
 - 如果有比我目前做法更好的“最佳实践”，请委婉提出建议并说明原因。
