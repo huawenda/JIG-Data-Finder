@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
         self.loading_bar = QProgressBar()
         self.loading_bar.setFixedSize(150, 6) # 细长条，宽150px，高6px
         self.loading_bar.setTextVisible(False) # 不显示百分比文字
-        self.loading_bar.setRange(0, 0) # 关键：设为 0-0 会触发“繁忙模式”动画
+        self.loading_bar.setRange(0, 0) # 关键：设为 0-0 会触发"繁忙模式"动画
         self.loading_bar.hide() # 默认隐藏
         
         self.log_label = QLabel("准备就绪 ")
@@ -603,6 +603,14 @@ class MainWindow(QMainWindow):
             config.default_file_dialog_path = settings.get("default_file_dialog_path", "")
             config.default_export_path = settings.get("default_export_path", "")
             config.table_default_row_height = settings.get("table_default_row_height", config.table_default_row_height)
+            
+            # 更新窗口大小
+            if "window_size" in settings:
+                new_window_size = settings["window_size"]
+                if new_window_size != config.window_size:
+                    config.window_size = new_window_size
+                    # 立即应用新的窗口大小
+                    self.resize(*new_window_size)
             
             # 保存配置到文件
             try:

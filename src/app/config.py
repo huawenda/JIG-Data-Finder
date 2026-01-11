@@ -14,7 +14,7 @@ class AppConfig:
     
     # 窗口配置
     window_title: str = "JIG Data Finder"
-    window_size: tuple = (1500, 900)
+    window_size: tuple = (1400, 800)
     window_padding: int = 8 # 增加边缘检测距离，改善鼠标缩放标志显示
     
     # UI布局配置

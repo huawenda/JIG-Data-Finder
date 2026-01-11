@@ -234,6 +234,41 @@ class SettingsDialog(QDialog):
         row_height_layout.addStretch()  # 添加弹簧，确保输入框靠左对齐
         ui_settings_layout.addWidget(row_height_container)
         
+        # 窗口大小设置
+        window_size_container = QWidget()
+        window_size_layout = QHBoxLayout(window_size_container)
+        window_size_layout.setContentsMargins(0, 0, 0, 0)
+        window_size_layout.setSpacing(8)
+        
+        # 标签
+        window_size_label = QLabel("窗口大小:")
+        window_size_label.setFixedWidth(80)
+        
+        # 宽度输入框
+        self.window_width_spinbox = QSpinBox()
+        self.window_width_spinbox.setRange(800, 1920)  # 最小800，最大1920
+        self.window_width_spinbox.setValue(config.window_size[0])
+        self.window_width_spinbox.setFixedWidth(80)
+        
+        # 尺寸连接符
+        size_connector = QLabel("×")
+        size_connector.setAlignment(Qt.AlignCenter)
+        size_connector.setFixedWidth(20)
+        
+        # 高度输入框
+        self.window_height_spinbox = QSpinBox()
+        self.window_height_spinbox.setRange(600, 1080)  # 最小600，最大1080
+        self.window_height_spinbox.setValue(config.window_size[1])
+        self.window_height_spinbox.setFixedWidth(80)
+        
+        # 组装窗口大小设置
+        window_size_layout.addWidget(window_size_label)
+        window_size_layout.addWidget(self.window_width_spinbox)
+        window_size_layout.addWidget(size_connector)
+        window_size_layout.addWidget(self.window_height_spinbox)
+        window_size_layout.addStretch()  # 添加弹簧，确保控件靠左对齐
+        ui_settings_layout.addWidget(window_size_container)
+        
         # 添加界面设置分组到内容布局
         content_layout.addWidget(ui_settings_frame)
         
@@ -323,7 +358,8 @@ class SettingsDialog(QDialog):
         settings = {
             "default_file_dialog_path": self.default_path_edit.text().strip(),
             "default_export_path": self.default_export_path_edit.text().strip(),
-            "table_default_row_height": self.row_height_spinbox.value()
+            "table_default_row_height": self.row_height_spinbox.value(),
+            "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value())
         }
         return settings
         
@@ -345,6 +381,12 @@ class SettingsDialog(QDialog):
         # 设置表格行高
         if "table_default_row_height" in settings:
             self.row_height_spinbox.setValue(settings["table_default_row_height"])
+        
+        # 设置窗口大小
+        if "window_size" in settings:
+            width, height = settings["window_size"]
+            self.window_width_spinbox.setValue(width)
+            self.window_height_spinbox.setValue(height)
 
 
 if __name__ == "__main__":
