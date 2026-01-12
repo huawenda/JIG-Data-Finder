@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
     
     sig_req_load = Signal(str)
     sig_req_query = Signal(list)
+    sig_req_process_source = Signal()
 
     def __init__(self):
         super().__init__()
@@ -252,10 +253,35 @@ class MainWindow(QMainWindow):
         # 绑定信号
         self.combo_filter.currentIndexChanged.connect(self.on_pivot_filter_changed)
 
-        # 添加三个标签页到标签容器
+        # Tab 4: 审查页
+        self.tab_review = QWidget()
+        layout_review = QVBoxLayout(self.tab_review)
+        layout_review.setContentsMargins(0, 0, 0, 0)
+
+        # 工具栏
+        review_toolbar = QWidget()
+        review_toolbar_layout = QHBoxLayout(review_toolbar)
+        review_toolbar_layout.setContentsMargins(10, 5, 10, 0)
+
+        review_toolbar_layout.addWidget(QLabel("P/N:"))
+        self.combo_pn = QComboBox()
+        self.combo_pn.setFixedWidth(150)
+        review_toolbar_layout.addWidget(self.combo_pn)
+        review_toolbar_layout.addStretch()
+
+        layout_review.addWidget(review_toolbar)
+
+        # 表格视图
+        self.review_table_view = QTableView()
+        self.review_table_view.verticalHeader().setVisible(False)
+        self.review_table_view.verticalHeader().setDefaultSectionSize(config.table_default_row_height)
+        layout_review.addWidget(self.review_table_view)
+
+        # 添加四个标签页到标签容器
         self.tabs.addTab(self.tab_detail, "查询结果")
         self.tabs.addTab(self.tab_query_pivot, "查询结果透视")
         self.tabs.addTab(self.tab_pivot, "全量数据透视")
+        self.tabs.addTab(self.tab_review, "审查")
         
         # 导出按钮（根据当前标签页显示不同的导出功能）
         self.btn_export = QPushButton("导出查询结果")
@@ -328,12 +354,15 @@ class MainWindow(QMainWindow):
         self.btn_settings.clicked.connect(self.show_settings)  # 设置按钮点击事件
         self.tabs.currentChanged.connect(self.on_tab_changed) # 监听标签切换
         self.size_validation_checkbox.stateChanged.connect(self.on_size_validation_changed) # 尺寸验证开关
+        self.combo_pn.currentIndexChanged.connect(self.on_pn_filter_changed) # P/N 筛选
         
         # 初始化数据存储变量
         self.current_result_df = None
         self.current_query_pivot_df = None
         self.current_pivot_df = None
         self.current_detail_model = None  # 当前明细表模型
+        self.current_review_df = None  # 审查页完整数据
+        self.current_review_model = None  # 审查页表格模型
         
     def init_thread(self):
         """初始化工作线程"""
@@ -343,11 +372,13 @@ class MainWindow(QMainWindow):
 
         self.sig_req_load.connect(self.worker.load_data)
         self.sig_req_query.connect(self.worker.query_data)
+        self.sig_req_process_source.connect(self.worker.process_source_data)
         
         # 信号连接
         self.worker.sig_log.connect(self.update_log)
         self.worker.sig_data_loaded.connect(self.on_data_loaded)
         self.worker.sig_query_finished.connect(self.on_query_finished)
+        self.worker.sig_source_data_processed.connect(self.update_review_view)
         
         # 启动线程
         self.thread.start()
@@ -414,6 +445,9 @@ class MainWindow(QMainWindow):
                 # self.tabs.setCurrentIndex(2) 
 
             QMessageBox.information(self, "成功", "源数据加载成功！")
+            
+            # 处理源数据用于审查页
+            self.sig_req_process_source.emit()
         else:
             self.status_label.setText("状态: 加载失败")
             self.status_label.setStyleSheet("color: #EF4444;")
@@ -482,14 +516,115 @@ class MainWindow(QMainWindow):
         # 切换到结果表 Tab
         self.tabs.setCurrentIndex(0)
 
+    def update_review_view(self, df_review):
+        """
+        更新审查页视图
+        
+        该方法接收处理后的源数据,更新审查页的表格视图和 P/N combobox:
+        1. 保存完整数据用于筛选
+        2. 初始化 P/N combobox 的选项 (全部 + 所有唯一 P/N 值)
+        3. 创建表格模型并设置到表格视图
+        4. 审查页的表格模型默认启用尺寸验证功能
+        
+        Args:
+            df_review: 处理后的源数据 DataFrame
+        """
+        # 1. 保存完整数据用于筛选
+        self.current_review_df = df_review
+        
+        if df_review.empty:
+            self.update_log("没有审查数据")
+            self.review_table_view.setModel(None)
+            self.combo_pn.clear()
+            return
+        
+        # 2. 初始化 P/N combobox 的选项
+        self.combo_pn.blockSignals(True)  # 阻止信号触发
+        self.combo_pn.clear()
+        self.combo_pn.addItem("全部")  # 添加"全部"选项
+        
+        # 获取所有唯一的 P/N 值并排序
+        if "P/N" in df_review.columns:
+            unique_pns = df_review["P/N"].unique()
+            unique_pns = sorted([pn for pn in unique_pns if pd.notna(pn) and str(pn).strip()])
+            for pn in unique_pns:
+                self.combo_pn.addItem(str(pn))
+        
+        self.combo_pn.blockSignals(False)  # 恢复信号触发
+        
+        # 3. 创建表格模型并设置到表格视图
+        model_review = PandasModel(df_review, show_row_numbers=True)
+        self.current_review_model = model_review
+        
+        # 审查页的表格模型默认启用尺寸验证功能 (独立于查询页)
+        model_review.set_size_validation_enabled(True)
+        
+        self.review_table_view.setModel(model_review)
+        
+        # 4. 设置列宽
+        self.review_table_view.setColumnWidth(0, config.table_row_number_width)
+        for i, col_name in enumerate(df_review.columns):
+            if col_name in config.adaptive_columns:
+                self.review_table_view.resizeColumnToContents(i + 1)
+            else:
+                self.review_table_view.setColumnWidth(i + 1, config.table_default_column_width)
+
+    def on_pn_filter_changed(self, index):
+        """
+        P/N combobox 切换处理
+        
+        根据 P/N combobox 的选择筛选显示的数据:
+        - 选择"全部": 显示所有数据
+        - 选择特定 P/N: 只显示该 P/N 的数据
+        
+        Args:
+            index: combobox 的当前索引 (0 表示"全部", 其他表示特定 P/N)
+        """
+        if self.current_review_df is None or self.current_review_df.empty:
+            return
+        
+        # 获取当前选择的 P/N
+        selected_pn = self.combo_pn.currentText()
+        
+        if selected_pn == "全部":
+            # 显示所有数据
+            filtered_df = self.current_review_df
+            self.update_log(f"显示全部审查数据,共 {len(filtered_df)} 行")
+        else:
+            # 筛选特定 P/N 的数据
+            if "P/N" in self.current_review_df.columns:
+                filtered_df = self.current_review_df[self.current_review_df["P/N"] == selected_pn]
+                self.update_log(f"筛选 P/N: {selected_pn},共 {len(filtered_df)} 行")
+            else:
+                filtered_df = self.current_review_df
+        
+        # 更新表格视图
+        model_review = PandasModel(filtered_df, show_row_numbers=True)
+        self.current_review_model = model_review
+        
+        # 审查页的表格模型默认启用尺寸验证功能
+        model_review.set_size_validation_enabled(True)
+        
+        self.review_table_view.setModel(model_review)
+        
+        # 设置列宽
+        self.review_table_view.setColumnWidth(0, config.table_row_number_width)
+        for i, col_name in enumerate(filtered_df.columns):
+            if col_name in config.adaptive_columns:
+                self.review_table_view.resizeColumnToContents(i + 1)
+            else:
+                self.review_table_view.setColumnWidth(i + 1, config.table_default_column_width)
+
     def on_tab_changed(self, index):
         """标签页切换时更新按钮文字"""
         if index == 0:
             self.btn_export.setText("导出查询结果")
         elif index == 1:
             self.btn_export.setText("导出查询结果透视表")
-        else:
+        elif index == 2:
             self.btn_export.setText("导出全量数据透视表")
+        else:
+            self.btn_export.setText("导出审查数据")
 
     def export_excel(self):
         """导出Excel - 根据当前标签页导出不同数据"""
@@ -506,10 +641,14 @@ class MainWindow(QMainWindow):
             # 查询透视
             target_df = self.current_query_pivot_df
             default_name = "查询结果透视表.xlsx"
-        else:
+        elif current_idx == 2:
             # 导出透视表
             target_df = self.current_pivot_df
             default_name = "全量数据透视表.xlsx"
+        else:
+            # 审查数据 (暂不实现导出功能)
+            QMessageBox.warning(self, "提示", "审查数据导出功能暂未实现")
+            return
 
         if target_df is None or target_df.empty:
             QMessageBox.warning(self, "警告", "当前页面没有可导出的数据")

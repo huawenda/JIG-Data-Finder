@@ -58,6 +58,7 @@ class ExcelWorker(QObject):
     sig_log = Signal(str)                    # 日志信号
     sig_data_loaded = Signal(bool, object)   # 数据加载完成信号
     sig_query_finished = Signal(object, object)  # 查询完成信号
+    sig_source_data_processed = Signal(object)  # 源数据处理完成信号
 
     def __init__(self) -> None:
         """
@@ -493,6 +494,119 @@ class ExcelWorker(QObject):
             
         except Exception as e:
             self.sig_log.emit(f"查询出错: {str(e)}")
+            import traceback
+            traceback.print_exc()  # 调试用
+
+    def process_source_data(self) -> None:
+        """
+        处理源数据用于审查页显示
+        
+        该方法对已加载的源数据进行处理,用于在审查页显示:
+        1. 过滤 JIG 状态为 "INPRODUCTION" 的数据
+        2. 添加"对应尺寸"列 (基于 Jig 对应型号映射)
+        3. 使用 output_columns 调整列顺序
+        4. 应用与 query_data 相同的排序逻辑
+        
+        处理流程:
+        1. 状态检查: 确保源数据已加载
+        2. 过滤 JIG 状态: 只保留 JIG 状态为 "INPRODUCTION" 的数据
+        3. 尺寸映射: 根据 Jig 对应型号映射到对应尺寸
+        4. 列调整: 动态调整输出列顺序,插入尺寸列
+        5. 数据排序: 按照配置的排序列进行排序 (支持数值排序)
+        6. 结果发送: 通过 sig_source_data_processed 信号返回结果
+        
+        Returns:
+            None: 结果通过 sig_source_data_processed 信号返回
+        
+        Raises:
+            Exception: 处理过程中出现错误时记录日志
+        
+        Notes:
+            - 使用与 query_data 相同的排序逻辑
+            - 尺寸映射基于 config.jig_size_mapping 配置
+            - 输出列顺序根据 config.output_columns 动态调整
+            - 不需要填充未找到的数据 (因为这是直接处理源数据)
+        """
+        if self.df_source is None:
+            self.sig_log.emit(config.get_error_message("no_data_loaded"))
+            return
+        
+        try:
+            # 1. 过滤 JIG 状态为 "INPRODUCTION" 的数据
+            df_review = self.df_source.copy()
+            if config.jig_status_column in df_review.columns:
+                df_review = df_review[df_review[config.jig_status_column] == config.jig_status_active_value]
+            
+            if df_review.empty:
+                self.sig_log.emit("没有符合条件的数据")
+                self.sig_source_data_processed.emit(df_review)
+                return
+            
+            # 2. 添加"对应尺寸"列
+            size_map_dict = config.jig_size_mapping
+            target_col = "Jig 对应型号"
+            new_col_name = "对应尺寸"
+
+            if target_col in df_review.columns:
+                # 处理 Jig 对应型号列: 提取第一个型号 (如 "184 184" → "184")
+                df_review[target_col] = df_review[target_col].apply(
+                    lambda x: str(x).split()[0] if pd.notna(x) and str(x).strip() else ""
+                )
+                
+                # 使用处理后的值进行映射,未匹配到的填空字符串
+                df_review[new_col_name] = df_review[target_col].map(size_map_dict).fillna("")
+                
+                # 3. 动态调整输出列顺序
+                local_output_cols = list(self.output_columns)
+                if target_col in local_output_cols:
+                    idx = local_output_cols.index(target_col)
+                    # 插入到 target_col 的后面
+                    if new_col_name not in local_output_cols:
+                        local_output_cols.insert(idx + 1, new_col_name)
+                else:
+                    # 如果配置文件里没配 Jig 对应型号,就加到最后
+                    local_output_cols.append(new_col_name)
+            else:
+                local_output_cols = self.output_columns
+
+            # 4. 列重排 & 筛选
+            # 只保留存在的列,防止源数据缺某一列导致报错
+            final_cols = [c for c in local_output_cols if c in df_review.columns]
+            final_df = df_review[final_cols].copy()
+            
+            # 5. 按照指定顺序排序: 使用配置中的排序列
+            sort_columns = config.sort_columns
+            # 只对存在的列进行排序,避免源数据缺少某些列导致错误
+            sort_columns = [col for col in sort_columns if col in final_df.columns]
+            
+            if sort_columns:
+                # 处理需要数值排序的列,创建临时数值列进行排序
+                temp_cols = []
+                for col in sort_columns:
+                    if col in config.numeric_sort_columns:  # 使用配置中的数值排序列
+                        # 创建临时列,尝试将字符串转换为数值,转换失败则保持原字符串
+                        temp_col = f"{col}_temp"
+                        # 使用pd.to_numeric, errors='coerce'将不能转换的设为NaN,然后fillna保持原字符串
+                        final_df[temp_col] = pd.to_numeric(final_df[col], errors='coerce')
+                        # 对NaN值进行填充,确保排序时原字符串值排在最后
+                        final_df[temp_col] = final_df[temp_col].fillna(float('inf'))
+                        temp_cols.append(temp_col)
+                    else:
+                        # 不需要数值排序的列,直接使用原列名
+                        temp_cols.append(col)
+                
+                # 使用临时列进行排序
+                final_df = final_df.sort_values(by=temp_cols, ascending=True)
+                
+                # 删除临时列
+                for col in temp_cols:
+                    if col.endswith("_temp") and col in final_df.columns:
+                        final_df.drop(columns=col, inplace=True)       
+
+            self.sig_source_data_processed.emit(final_df)
+            
+        except Exception as e:
+            self.sig_log.emit(f"处理源数据出错: {str(e)}")
             import traceback
             traceback.print_exc()  # 调试用
 

@@ -28,7 +28,7 @@ class AppConfig:
     table_row_number_width: int = 60 # 行号列宽
     table_default_column_width: int = 106 # 默认列宽
     adaptive_columns: List[str] = None  # 自适应宽度指定列
-    table_default_row_height: int = 30 # 默认行高 (建议 32-36 之间，视觉较舒适)
+    table_default_row_height: int = 30 # 默认行高
     table_row_height_min: int = 20   # 最小行高
     table_row_height_max: int = 30   # 最大行高
 
