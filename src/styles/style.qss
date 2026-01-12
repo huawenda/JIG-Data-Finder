@@ -197,60 +197,53 @@ QLabel#LogLabel {
     color: #64748B;
 }
 
-/* === 11. 标签页样式 (TabWidget) === */
-QTabWidget::pane {
-    /* 1. 去除 Pane 的所有边框，解决"双重框线"问题 */
-    border: none;
-    
-    /* 2. 只保留一条顶部的浅灰分割线，用于区分 Tab栏和表格 */
+/* === 11. 标签页样式 (TabWidget) - 胶囊风格修正版 === */
 
+QTabWidget::pane {
+    /* 1. [核心修改] 去除 Tab 页的所有外边框 */
+    border: none; 
     
-    background: #FFFFFF;
-    /* 微调位置，确保分割线和 Tab 的底部蓝条完美衔接 */
-    top: -1px; 
+    /* 这里的背景可以设为透明，让它直接显示底层 CardFrame 的白色 */
+    background: transparent;
+    
+    /* 让下方的表格内容和 Tab 胶囊之间留出一点呼吸感 */
+    top: 10px; 
 }
 
 QTabWidget::tab-bar {
-    /* 标签栏左对齐，留出一点间隙 */
-    left: 10px; 
+    /* 左对齐 */
+    left: 0px; 
 }
 
 QTabBar::tab {
+    /* 胶囊基础样式 */
     background: transparent;
-    color: #64748B;
-    font-size: 13px;
-    font-weight: bold;
+    border: none;              /* 去除所有边框 */
+    border-radius: 6px;        /* 圆角矩形 */
     
-    /* === 核心修改：高度对齐 === */
-    /* 强制设置高度，使其与左侧 Header (40px) 视觉一致 */
-    /* 减去边框厚度，约等于 38px + 2px border */
-    height: 38px; 
-    padding: 0px 20px; /* 上下 padding 设为 0，完全靠 height 控制 */
+    /* 2. [核心修改] 增加宽度和间距，解决文字显示不全 */
+    /* 之前的 100px 不够放下图标+长文字，改为 140px */
+    min-width: 140px;          
+    padding: 8px 0px;          /* 上下撑开一点高度 */
+    margin-right: 8px;         /* 胶囊之间的空隙 */
     
-    /* 预留底部线条位置 */
-    border-bottom: 2px solid transparent; 
-    margin-right: 2px;
-    
-    /* === 核心修改：去除弯曲 === */
-    /* 强制直角，去除所有圆角效果 */
-    border-radius: 0px;
+    /* 3. [核心修改] 字体颜色加深，解决不清晰 */
+    color: #475569;            /* Slate-600，深灰色，对比度高 */
+    font-weight: 600;          /* 半粗体 */
 }
 
-/* 鼠标悬停状态 */
+/* 鼠标悬停 */
 QTabBar::tab:hover {
-    border-radius: 0px; /* 确保悬停时也是直角 */
+    background-color: #F1F5F9; /* 浅灰背景反馈 */
+    color: #1E293B;            /* 接近黑色 */
 }
 
 /* 选中状态 */
 QTabBar::tab:selected {
-    color: #2563EB;
-    background-color: #FFFFFF;
-    
-    /* 底部蓝条 */
-    border-bottom: 2px solid #2563EB; 
-    
-    /* 向下延伸 1px，盖住 pane 的 border-top，形成一体化效果 */
-    margin-bottom: -1px; 
+    /* 选中变为浅蓝色背景块 */
+    background-color: #E0F2FE; /* 极淡的蓝色背景 */
+    color: #0284C7;            /* 深蓝色文字 */
+    font-weight: bold;
 }
 
 /* === 12. 进度条样式 === */

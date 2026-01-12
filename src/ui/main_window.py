@@ -278,10 +278,10 @@ class MainWindow(QMainWindow):
         layout_review.addWidget(self.review_table_view)
 
         # 添加四个标签页到标签容器
-        self.tabs.addTab(self.tab_detail, "查询结果")
-        self.tabs.addTab(self.tab_query_pivot, "查询结果透视")
-        self.tabs.addTab(self.tab_pivot, "全量数据透视")
-        self.tabs.addTab(self.tab_review, "审查")
+        self.tabs.addTab(self.tab_detail, "🔍 查询结果")
+        self.tabs.addTab(self.tab_query_pivot, "📊 查询结果透视")
+        self.tabs.addTab(self.tab_pivot, "📈 全量数据透视")
+        self.tabs.addTab(self.tab_review, "📋 审查")
         
         # 导出按钮（根据当前标签页显示不同的导出功能）
         self.btn_export = QPushButton("导出查询结果")
