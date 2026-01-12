@@ -403,8 +403,6 @@ class ExcelWorker(QObject):
         if not input_ids:
             self.sig_log.emit(config.get_error_message("no_input_ids"))
             return
-
-        self.sig_log.emit(f"正在查询 {len(input_ids)} 个 ID ...")
         
         try:
             # 1. 构造用户输入的 DataFrame

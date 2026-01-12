@@ -238,7 +238,7 @@ class MainWindow(QMainWindow):
         pivot_toolbar_layout.addWidget(QLabel("显示范围:"))
         self.combo_filter = QComboBox()
         self.combo_filter.addItems(["全部数据", "生产中"])
-        self.combo_filter.setFixedWidth(120)
+        self.combo_filter.setFixedWidth(90)
         pivot_toolbar_layout.addWidget(self.combo_filter)
         pivot_toolbar_layout.addStretch() # 弹簧，把控件顶到左边
         
@@ -265,7 +265,7 @@ class MainWindow(QMainWindow):
 
         review_toolbar_layout.addWidget(QLabel("P/N:"))
         self.combo_pn = QComboBox()
-        self.combo_pn.setFixedWidth(150)
+        self.combo_pn.setFixedWidth(100)
         review_toolbar_layout.addWidget(self.combo_pn)
         review_toolbar_layout.addStretch()
 
@@ -589,12 +589,12 @@ class MainWindow(QMainWindow):
         if selected_pn == "全部":
             # 显示所有数据
             filtered_df = self.current_review_df
-            self.update_log(f"显示全部审查数据,共 {len(filtered_df)} 行")
+            self.update_log(f"显示全部审查数据，共 {len(filtered_df)} 行")
         else:
             # 筛选特定 P/N 的数据
             if "P/N" in self.current_review_df.columns:
                 filtered_df = self.current_review_df[self.current_review_df["P/N"] == selected_pn]
-                self.update_log(f"筛选 P/N: {selected_pn},共 {len(filtered_df)} 行")
+                self.update_log(f"筛选 P/N: {selected_pn}，共 {len(filtered_df)} 行")
             else:
                 filtered_df = self.current_review_df
         
@@ -646,9 +646,12 @@ class MainWindow(QMainWindow):
             target_df = self.current_pivot_df
             default_name = "全量数据透视表.xlsx"
         else:
-            # 审查数据 (暂不实现导出功能)
-            QMessageBox.warning(self, "提示", "审查数据导出功能暂未实现")
-            return
+            # 审查数据 - 导出当前显示的数据（经过 P/N 筛选）
+            if self.review_table_view.model() is not None:
+                target_df = self.review_table_view.model()._data
+            else:
+                target_df = None
+            default_name = "审查数据.xlsx"
 
         if target_df is None or target_df.empty:
             QMessageBox.warning(self, "警告", "当前页面没有可导出的数据")
@@ -663,7 +666,58 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_path, config.excel_file_filter)
         if path:
             try:
-                target_df.to_excel(path, index=False)
+                # 判断是否需要应用尺寸验证样式（查询页和审查页）
+                apply_style = False
+                model = None
+                
+                if current_idx == 0 and self.current_detail_model is not None:
+                    # 查询页
+                    model = self.current_detail_model
+                    apply_style = model.is_size_validation_enabled()
+                elif current_idx == 3 and self.current_review_model is not None:
+                    # 审查页
+                    model = self.current_review_model
+                    apply_style = model.is_size_validation_enabled()
+                
+                if apply_style and model is not None:
+                    # 使用 openpyxl 设置样式
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill
+                    from openpyxl.utils.dataframe import dataframe_to_rows
+                    
+                    # 先用 pandas 写入数据
+                    target_df.to_excel(path, index=False)
+                    
+                    # 然后用 openpyxl 读取并设置样式
+                    from openpyxl import load_workbook
+                    wb = load_workbook(path)
+                    ws = wb.active
+                    
+                    # 获取列索引
+                    col_idx_pn = -1
+                    col_idx_size = -1
+                    if "P/N" in target_df.columns:
+                        col_idx_pn = target_df.columns.get_loc("P/N")
+                    if "对应尺寸" in target_df.columns:
+                        col_idx_size = target_df.columns.get_loc("对应尺寸")
+                    
+                    # 遍历数据行（跳过表头）
+                    for row_idx in range(2, ws.max_row + 1):  # 从第2行开始（第1行是表头）
+                        pn_val = ws.cell(row=row_idx, column=col_idx_pn + 1).value if col_idx_pn != -1 else ""
+                        size_val = ws.cell(row=row_idx, column=col_idx_size + 1).value if col_idx_size != -1 else ""
+                        
+                        # 检查尺寸是否匹配
+                        if not model._validate_size_match(str(pn_val) if pn_val else "", str(size_val) if size_val else ""):
+                            # 不匹配，设置红色字体
+                            cell = ws.cell(row=row_idx, column=col_idx_size + 1)
+                            cell.font = Font(color="FF0000")  # 红色
+                    
+                    # 保存修改
+                    wb.save(path)
+                else:
+                    # 不需要样式，直接导出
+                    target_df.to_excel(path, index=False)
+                
                 QMessageBox.information(self, "成功", "导出成功！")
             except Exception as e:
                 QMessageBox.critical(self, "错误", config.get_error_message("excel_export_error", error=str(e)))
