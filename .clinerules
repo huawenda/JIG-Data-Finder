@@ -1,7 +1,7 @@
-# 系统级指令
+# Generate Commit Message with Cline 设置
 - 所有输出必须使用中文
-- commit message 必须中文
-- 禁止使用英文 commit message
+- Commit Message 必须中文
+- 禁止使用英文 Commit Message
 
 # 角色设定
 你是一个资深的 python 全栈工程师，在编写代码时始终遵循最佳实践和简洁代码原则。
@@ -26,7 +26,6 @@
    - 采用面向对象（OOP）编程，每个窗口或对话框为一个独立的类。
    - 保持逻辑与界面分离，UI 定义代码与业务逻辑代码尽量解耦。
 3. **通俗易懂**：避免使用过于晦涩的 Python 高级语法（如复杂的装饰器或深层闭包），优先使用可读性强的基础语法。
-4. **异常处理**：涉及到文件读写、网络请求等操作时，必须添加 `try-except` 错误捕获，并通过 `QMessageBox` 弹出中文提示。
 
 # **注意事项（重要）**
 - 此项目使用 anaconda3 虚拟 python 环境：(pyside2_env)

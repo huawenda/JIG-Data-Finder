@@ -5,6 +5,7 @@ MainWindow - 主窗口类
 import sys
 import os
 import pandas as pd
+from datetime import datetime
 from PySide2.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QProgressBar,
                              QLabel, QLineEdit, QPushButton, QTableView,QComboBox,
                              QFileDialog, QSplitter, QMessageBox, QFrame, QHeaderView,QTabWidget,
@@ -624,9 +625,9 @@ class MainWindow(QMainWindow):
         if index == 0:
             self.btn_export.setText("导出查询结果")
         elif index == 1:
-            self.btn_export.setText("导出查询结果透视表")
+            self.btn_export.setText("导出结果透视表")
         elif index == 2:
-            self.btn_export.setText("导出全量数据透视表")
+            self.btn_export.setText("导出全量透视表")
         else:
             self.btn_export.setText("导出审查数据")
 
@@ -640,15 +641,15 @@ class MainWindow(QMainWindow):
         if current_idx == 0:
             # 导出明细
             target_df = self.current_result_df
-            default_name = config.default_export_filename
+            default_name = "查询结果.xlsx"
         elif current_idx == 1:
             # 查询透视
             target_df = self.current_query_pivot_df
-            default_name = "查询结果透视表.xlsx"
+            default_name = "结果透视表.xlsx"
         elif current_idx == 2:
             # 导出透视表
             target_df = self.current_pivot_df
-            default_name = "全量数据透视表.xlsx"
+            default_name = "全量透视表.xlsx"
         else:
             # 审查数据 - 导出当前显示的数据（经过 P/N 筛选）
             if self.review_table_view.model() is not None:
@@ -661,11 +662,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "当前页面没有可导出的数据")
             return
 
+        # 为文件名添加时间戳
+        default_name = self.add_timestamp_to_filename(default_name)
+        
         # 构建默认保存路径
         default_path = default_name
-        if config.default_export_path:
-            # 如果有配置的默认导出路径，组合成完整路径
-            default_path = os.path.join(config.default_export_path, default_name)
 
         path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_path, config.excel_file_filter)
         if path:
@@ -758,6 +759,18 @@ class MainWindow(QMainWindow):
         
         self.update_log("已清空输入和查询结果")
 
+    def add_timestamp_to_filename(self, filename):
+        """为文件名添加时间戳"""
+        if not config.export_timestamp_enabled:
+            return filename
+        
+        # 分离文件名和扩展名
+        name, ext = os.path.splitext(filename)
+        # 获取当前时间并格式化
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        # 返回带时间戳的文件名
+        return f"{name}{timestamp}{ext}"
+
     def on_size_validation_changed(self, state):
         """
         尺寸验证开关状态改变处理
@@ -803,6 +816,7 @@ class MainWindow(QMainWindow):
             config.clipboard_auto_process_enabled = settings.get("clipboard_auto_process_enabled", config.clipboard_auto_process_enabled)
             config.size_validation_enabled = settings.get("size_validation_enabled", config.size_validation_enabled)
             config.close_to_tray = settings.get("close_to_tray", config.close_to_tray)
+            config.export_timestamp_enabled = settings.get("export_timestamp_enabled", config.export_timestamp_enabled)
             
             # 更新窗口大小
             if "window_size" in settings:

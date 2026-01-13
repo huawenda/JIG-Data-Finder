@@ -188,6 +188,20 @@ class SettingsDialog(QDialog):
         clip_layout.addStretch()
         layout_feature.addLayout(clip_layout)
         
+        # 导出时间戳
+        timestamp_layout = QHBoxLayout()
+        lbl_timestamp = QLabel("导出文件名附加时间戳:")
+        lbl_timestamp.setFixedWidth(133)
+        
+        self.export_timestamp_checkbox = QCheckBox("启用")
+        self.export_timestamp_checkbox.setChecked(config.export_timestamp_enabled)
+        self.export_timestamp_checkbox.setCursor(Qt.PointingHandCursor)
+        
+        timestamp_layout.addWidget(lbl_timestamp)
+        timestamp_layout.addWidget(self.export_timestamp_checkbox)
+        timestamp_layout.addStretch()
+        layout_feature.addLayout(timestamp_layout)
+        
         # 尺寸验证
         valid_layout = QHBoxLayout()
         lbl_valid = QLabel("尺寸验证默认状态:")
@@ -195,7 +209,7 @@ class SettingsDialog(QDialog):
         
         self.size_validation_combo = QComboBox()
         self.size_validation_combo.addItems(["开启", "关闭"])
-        self.size_validation_combo.setFixedWidth(80)
+        self.size_validation_combo.setFixedWidth(60)
         self.size_validation_combo.setFixedHeight(25)
         self.size_validation_combo.setCursor(Qt.PointingHandCursor)
         current_index = 0 if config.size_validation_enabled else 1
@@ -316,7 +330,8 @@ class SettingsDialog(QDialog):
             "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value()),
             "clipboard_auto_process_enabled": self.clipboard_auto_process_checkbox.isChecked(),
             "size_validation_enabled": self.size_validation_combo.currentText() == "开启",
-            "close_to_tray": self.close_to_tray_checkbox.isChecked()
+            "close_to_tray": self.close_to_tray_checkbox.isChecked(),
+            "export_timestamp_enabled": self.export_timestamp_checkbox.isChecked()
         }
         
     def set_settings(self, settings):
@@ -338,6 +353,8 @@ class SettingsDialog(QDialog):
             self.size_validation_combo.setCurrentIndex(idx)
         if "close_to_tray" in settings:
             self.close_to_tray_checkbox.setChecked(settings["close_to_tray"])
+        if "export_timestamp_enabled" in settings:
+            self.export_timestamp_checkbox.setChecked(settings["export_timestamp_enabled"])
 
 if __name__ == "__main__":
     from PySide2.QtWidgets import QApplication
