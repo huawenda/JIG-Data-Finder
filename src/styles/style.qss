@@ -59,15 +59,15 @@ QPushButton:hover {
 /* === 6. 核心按钮：颜色加强 === */
 
 /* 蓝色按钮 (加载 & 查询) */
-QPushButton#btn_load, QPushButton#btn_query {
+QPushButton#btn_load, QPushButton#btn_query, QPushButton#btn_ok {
     background-color: #2563EB;
     border: 1px solid #2563EB;
     color: #FFFFFF;
 }
-QPushButton#btn_load:hover, QPushButton#btn_query:hover {
+QPushButton#btn_load:hover, QPushButton#btn_query:hover, QPushButton#btn_ok:hover {
     background-color: #1D4ED8;
 }
-QPushButton#btn_load:pressed, QPushButton#btn_query:pressed {
+QPushButton#btn_load:pressed, QPushButton#btn_query:pressed,QPushButton#btn_ok:pressed {
     background-color: #1E40AF;
     padding-top: 6px;
 }
@@ -207,7 +207,7 @@ QTabWidget::pane {
     background: transparent;
     
     /* 让下方的表格内容和 Tab 胶囊之间留出一点呼吸感 */
-    top: 10px; 
+    top: 8px; 
 }
 
 QTabWidget::tab-bar {
@@ -222,8 +222,7 @@ QTabBar::tab {
     border-radius: 6px;        /* 圆角矩形 */
     
     /* 2. [核心修改] 增加宽度和间距，解决文字显示不全 */
-    /* 之前的 100px 不够放下图标+长文字，改为 140px */
-    min-width: 140px;          
+    min-width: 100px;          
     padding: 8px 0px;          /* 上下撑开一点高度 */
     margin-right: 8px;         /* 胶囊之间的空隙 */
     
@@ -309,76 +308,49 @@ QCheckBox#sizeValidationToggle::indicator:unchecked:hover {
     border-color: #94A3B8;
 }
 
-/* === 14. 设置界面样式 === */
+/* =========================================
+   14. 设置界面专属样式 (New) */
 
-/* 设置对话框整体样式 */
-QDialog {
+/* 1. 设置对话框主背景：浅灰 */
+QDialog#SettingsDialog {
     background-color: #F2F4F8;
 }
 
-/* 设置内容区域样式 */
-QWidget#SettingsContent {
-    background-color: #FFFFFF;
-}
-
-/* 设置标题样式 */
-QLabel#SettingsTitle {
-    font-size: 16px;
-    font-weight: bold;
-    color: #1E293B;
-    padding: 8px 0;
-}
-
-/* 设置分隔线样式 */
-QFrame#SettingsSeparator {
-    background-color: #E2E8F0;
+/* 2. 滚动区域透明 */
+QScrollArea#SettingsScrollArea, 
+QWidget#SettingsContentWidget {
+    background-color: transparent; /* 关键：让底下的灰色透出来 */
     border: none;
-    min-height: 1px;
-    max-height: 1px;
 }
 
-/* 设置占位符文本样式 */
-QLabel#SettingsPlaceholder {
-    font-size: 13px;
-    color: #64748B;
-    line-height: 1.5;
-    padding: 20px;
-}
-
-/* 设置分组标题样式 */
-QLabel#SettingsGroupTitle {
-    font-size: 14px;
+/* 3. 卡片内标题 */
+QLabel#CardTitle {
+    font-size: 15px;
     font-weight: bold;
     color: #1E293B;
-    padding: 4px 0;
+    padding-bottom: 4px;
 }
 
-/* 设置按钮区域样式 */
-QFrame#SettingsButtonFrame {
+/* 4. 卡片内分割线 */
+QFrame#CardSeparator {
+    color: #E2E8F0; /* 分割线颜色 */
+    background-color: #E2E8F0;
+}
+
+/* 5. 底部按钮栏背景 */
+QFrame#SettingsBottomBar {
     background-color: #FFFFFF;
     border-top: 1px solid #E2E8F0;
 }
 
-/* 设置确定按钮样式 */
-QPushButton#btn_ok {
-    background-color: #2563EB;
-    border: 1px solid #2563EB;
-    color: #FFFFFF;
-}
-QPushButton#btn_ok:hover {
-    background-color: #1D4ED8;
-}
-QPushButton#btn_ok:pressed {
-    background-color: #1E40AF;
+/* 6. 提示文字小号灰字 */
+QLabel#TipLabel {
+    color: #94A3B8;
+    font-size: 12px;
 }
 
-/* 设置滚动区域样式 */
-QScrollArea {
-    border: none;
-    background-color: transparent;
-}
-QScrollArea > QWidget > QWidget {
-    background-color: transparent;
-}
+
+
+
 
 

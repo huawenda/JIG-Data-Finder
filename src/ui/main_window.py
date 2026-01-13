@@ -10,6 +10,7 @@ from PySide2.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                              QFileDialog, QSplitter, QMessageBox, QFrame, QHeaderView,QTabWidget,
                              QCheckBox, QDialog)
 from PySide2.QtCore import Qt, QThread, Signal
+from PySide2.QtWidgets import QSystemTrayIcon
 
 # 添加src目录到路径，以便可以导入其他模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +40,9 @@ class MainWindow(QMainWindow):
         
         # 使用 Windows 原生窗口框架
         self.setWindowFlags(Qt.Window)
+        
+        # 初始化强制退出标志
+        self.force_quit = False
         
         # 创建主内容容器作为 centralWidget
         self.content_widget = QWidget()
@@ -276,12 +280,12 @@ class MainWindow(QMainWindow):
         self.review_table_view.verticalHeader().setVisible(False)
         self.review_table_view.verticalHeader().setDefaultSectionSize(config.table_default_row_height)
         layout_review.addWidget(self.review_table_view)
-
+        
         # 添加四个标签页到标签容器
         self.tabs.addTab(self.tab_detail, "🔍 查询结果")
-        self.tabs.addTab(self.tab_query_pivot, "📊 查询结果透视")
-        self.tabs.addTab(self.tab_pivot, "📈 全量数据透视")
-        self.tabs.addTab(self.tab_review, "📋 审查")
+        self.tabs.addTab(self.tab_query_pivot, "📊 结果透视")
+        self.tabs.addTab(self.tab_pivot, "📈 全量透视")
+        self.tabs.addTab(self.tab_review, "📋 数据审查")
         
         # 导出按钮（根据当前标签页显示不同的导出功能）
         self.btn_export = QPushButton("导出查询结果")
@@ -819,9 +823,26 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """关闭事件处理"""
-        self.thread.quit()
-        self.thread.wait()
-        event.accept()
+        # 检查是否强制退出（通过托盘菜单退出）
+        if hasattr(self, 'force_quit') and self.force_quit:
+            # 强制退出程序
+            self.thread.quit()
+            self.thread.wait()
+            event.accept()
+            return
+        
+        # 检查是否启用托盘功能且配置为关闭到托盘
+        if (hasattr(config, 'tray_enabled') and config.tray_enabled and 
+            hasattr(config, 'close_to_tray') and config.close_to_tray and
+            hasattr(self, 'tray_icon') and self.tray_icon is not None):
+            # 最小化到托盘而不是关闭
+            self.hide()
+            event.ignore()
+        else:
+            # 正常关闭程序
+            self.thread.quit()
+            self.thread.wait()
+            event.accept()
 
 
 if __name__ == "__main__":

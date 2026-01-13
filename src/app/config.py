@@ -77,6 +77,11 @@ class AppConfig:
     # 剪贴板处理配置
     clipboard_auto_process_enabled: bool = True  # 是否启用剪贴板自动处理功能
 
+    # 系统托盘配置
+    tray_enabled: bool = True  # 是否启用系统托盘功能
+    minimize_to_tray: bool = True  # 是否支持最小化到托盘
+    close_to_tray: bool = True  # 关闭窗口时是否最小化到托盘
+
     # 错误消息配置
     error_messages: Dict[str, str] = None
     
