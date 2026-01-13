@@ -13,7 +13,6 @@ sys.path.insert(0, get_resource_path("."))
 
 from PySide2.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 from PySide2.QtGui import QIcon
-from PySide2.QtCore import QObject
 from ui.main_window import MainWindow
 from app.config import config
 

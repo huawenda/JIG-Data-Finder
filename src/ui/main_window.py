@@ -802,6 +802,7 @@ class MainWindow(QMainWindow):
             config.table_default_row_height = settings.get("table_default_row_height", config.table_default_row_height)
             config.clipboard_auto_process_enabled = settings.get("clipboard_auto_process_enabled", config.clipboard_auto_process_enabled)
             config.size_validation_enabled = settings.get("size_validation_enabled", config.size_validation_enabled)
+            config.close_to_tray = settings.get("close_to_tray", config.close_to_tray)
             
             # 更新窗口大小
             if "window_size" in settings:

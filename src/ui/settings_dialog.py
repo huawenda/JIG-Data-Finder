@@ -151,6 +151,21 @@ class SettingsDialog(QDialog):
         win_size_layout.addStretch()
         
         layout_ui.addLayout(win_size_layout)
+        
+        # 窗口关闭时隐藏至系统托盘
+        tray_layout = QHBoxLayout()
+        lbl_tray = QLabel("窗口关闭时隐藏至系统托盘:")
+        lbl_tray.setFixedWidth(160)
+        
+        self.close_to_tray_checkbox = QCheckBox("启用")
+        self.close_to_tray_checkbox.setChecked(config.close_to_tray)
+        self.close_to_tray_checkbox.setCursor(Qt.PointingHandCursor)
+        
+        tray_layout.addWidget(lbl_tray)
+        tray_layout.addWidget(self.close_to_tray_checkbox)
+        tray_layout.addStretch()
+        layout_ui.addLayout(tray_layout)
+        
         content_layout.addWidget(card_ui)
         
         # =========================================
@@ -300,7 +315,8 @@ class SettingsDialog(QDialog):
             "table_default_row_height": self.row_height_spinbox.value(),
             "window_size": (self.window_width_spinbox.value(), self.window_height_spinbox.value()),
             "clipboard_auto_process_enabled": self.clipboard_auto_process_checkbox.isChecked(),
-            "size_validation_enabled": self.size_validation_combo.currentText() == "开启"
+            "size_validation_enabled": self.size_validation_combo.currentText() == "开启",
+            "close_to_tray": self.close_to_tray_checkbox.isChecked()
         }
         
     def set_settings(self, settings):
@@ -320,6 +336,8 @@ class SettingsDialog(QDialog):
         if "size_validation_enabled" in settings:
             idx = 0 if settings["size_validation_enabled"] else 1
             self.size_validation_combo.setCurrentIndex(idx)
+        if "close_to_tray" in settings:
+            self.close_to_tray_checkbox.setChecked(settings["close_to_tray"])
 
 if __name__ == "__main__":
     from PySide2.QtWidgets import QApplication
