@@ -11,7 +11,6 @@ from PySide2.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                              QFileDialog, QSplitter, QMessageBox, QFrame, QHeaderView,QTabWidget,
                              QCheckBox, QDialog)
 from PySide2.QtCore import Qt, QThread, Signal
-from PySide2.QtWidgets import QSystemTrayIcon
 
 # 添加src目录到路径，以便可以导入其他模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -859,8 +858,7 @@ class MainWindow(QMainWindow):
             self.thread.wait()
             event.accept()
 
-
-if __name__ == "__main__":
+def test():
     # 测试代码
     import sys
     from PySide2.QtWidgets import QApplication
@@ -884,3 +882,7 @@ if __name__ == "__main__":
     Window = MainWindow()
     Window.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    test()

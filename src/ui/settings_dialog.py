@@ -335,7 +335,6 @@ class SettingsDialog(QDialog):
         }
         
     def set_settings(self, settings):
-        # (保持原有的逻辑不变，这里为了节省篇幅略过，逻辑是一样的)
         if "default_file_dialog_path" in settings:
             self.default_path_edit.setText(settings["default_file_dialog_path"])
         if "default_export_path" in settings:
@@ -356,7 +355,7 @@ class SettingsDialog(QDialog):
         if "export_timestamp_enabled" in settings:
             self.export_timestamp_checkbox.setChecked(settings["export_timestamp_enabled"])
 
-if __name__ == "__main__":
+def test():
     from PySide2.QtWidgets import QApplication
     app = QApplication(sys.argv)
     
@@ -377,3 +376,7 @@ if __name__ == "__main__":
     dialog = SettingsDialog()
     dialog.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    test()
