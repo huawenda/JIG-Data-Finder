@@ -4,8 +4,63 @@
 
 import json
 import os
+import shutil
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Optional
+
+
+def get_config_dir() -> str:
+    """
+    获取配置文件目录
+    
+    Returns:
+        配置目录路径（AppData\Roaming\JIG Data Finder）
+    """
+    app_name = "JIG Data Finder"
+    
+    if os.name == 'nt':
+        config_dir = os.path.join(os.getenv('APPDATA', os.path.expanduser('~')), app_name)
+    else:
+        config_dir = os.path.expanduser(f'~/.config/{app_name}')
+    
+    return config_dir
+
+
+def get_config_path() -> str:
+    """
+    获取配置文件完整路径
+    
+    Returns:
+        配置文件完整路径
+    """
+    return os.path.join(get_config_dir(), "config.json")
+
+
+def migrate_old_config() -> bool:
+    """
+    迁移旧配置文件到 AppData 目录
+    
+    Returns:
+        是否成功迁移
+    """
+    old_config_path = "config.json"
+    new_config_path = get_config_path()
+    
+    if not os.path.exists(old_config_path):
+        return False
+    
+    if os.path.exists(new_config_path):
+        print(f"新配置文件已存在，跳过迁移: {new_config_path}")
+        return False
+    
+    try:
+        os.makedirs(get_config_dir(), exist_ok=True)
+        shutil.copy2(old_config_path, new_config_path)
+        print(f"配置文件已迁移到: {new_config_path}")
+        return True
+    except Exception as e:
+        print(f"迁移配置文件失败: {e}")
+        return False
 
 
 @dataclass
@@ -170,40 +225,56 @@ class AppConfig:
 
 
     @classmethod
-    def load(cls, config_path: str = "config.json") -> 'AppConfig':
+    def load(cls, config_path: str = None) -> 'AppConfig':
         """
         从JSON文件加载配置
         
         Args:
-            config_path: 配置文件路径
+            config_path: 配置文件路径，如果为None则使用默认路径
             
         Returns:
             AppConfig实例
         """
+        if config_path is None:
+            config_path = get_config_path()
+        
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                print(f"配置文件已加载: {config_path}")
                 return cls(**data)
             except Exception as e:
                 print(f"加载配置文件失败，使用默认配置: {e}")
+        else:
+            print(f"配置文件不存在: {config_path}")
+            migrate_old_config()
+            
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    print(f"配置文件已加载（从旧配置迁移）: {config_path}")
+                    return cls(**data)
+                except Exception as e:
+                    print(f"加载迁移后的配置文件失败，使用默认配置: {e}")
         
-        # 如果文件不存在或加载失败，返回默认配置
         return cls()
     
-    def save(self, config_path: str = "config.json"):
+    def save(self, config_path: str = None):
         """
         保存配置到JSON文件
         
         Args:
-            config_path: 配置文件路径
+            config_path: 配置文件路径，如果为None则使用默认路径
         """
+        if config_path is None:
+            config_path = get_config_path()
+        
         try:
-            # 转换dataclass为字典
             data = asdict(self)
             
-            # 确保目录存在
-            os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
             
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
