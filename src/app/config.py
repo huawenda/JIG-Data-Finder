@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 
 def get_config_dir() -> str:
     """
-    获取配置文件目录
+    获取配置文件目录（兼容Win7）
     
     Returns:
         配置目录路径（AppData\Roaming\JIG Data Finder）
@@ -19,9 +19,21 @@ def get_config_dir() -> str:
     app_name = "JIG Data Finder"
     
     if os.name == 'nt':
-        config_dir = os.path.join(os.getenv('APPDATA', os.path.expanduser('~')), app_name)
+        # 修复Win7环境变量获取问题
+        appdata = os.getenv('APPDATA')
+        if not appdata:
+            # Win7兼容：如果APPDATA不存在，手动构建路径
+            home = os.path.expanduser('~')
+            appdata = os.path.join(home, 'AppData', 'Roaming')
+        config_dir = os.path.join(appdata, app_name)
     else:
         config_dir = os.path.expanduser(f'~/.config/{app_name}')
+    
+    # 确保目录存在（Win7兼容）
+    try:
+        os.makedirs(config_dir, exist_ok=True)
+    except Exception as e:
+        print(f"创建配置目录失败: {e}")
     
     return config_dir
 
@@ -38,7 +50,7 @@ def get_config_path() -> str:
 
 def migrate_old_config() -> bool:
     """
-    迁移旧配置文件到 AppData 目录
+    迁移旧配置文件到 AppData 目录（兼容Win7）
     
     Returns:
         是否成功迁移
@@ -46,20 +58,32 @@ def migrate_old_config() -> bool:
     old_config_path = "config.json"
     new_config_path = get_config_path()
     
+    print(f"正在尝试迁移旧配置文件：")
+    print(f"  旧路径: {old_config_path}")
+    print(f"  新路径: {new_config_path}")
+    
     if not os.path.exists(old_config_path):
+        print(f"  旧配置文件不存在，跳过迁移")
         return False
     
     if os.path.exists(new_config_path):
-        print(f"新配置文件已存在，跳过迁移: {new_config_path}")
+        print(f"  新配置文件已存在，跳过迁移: {new_config_path}")
         return False
     
     try:
-        os.makedirs(get_config_dir(), exist_ok=True)
+        config_dir = os.path.dirname(new_config_path)
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+            print(f"  已创建配置目录: {config_dir}")
+        
         shutil.copy2(old_config_path, new_config_path)
-        print(f"配置文件已迁移到: {new_config_path}")
+        print(f"  配置文件已成功迁移到: {new_config_path}")
         return True
+    except PermissionError as e:
+        print(f"  迁移配置失败：权限不足: {e}")
+        return False
     except Exception as e:
-        print(f"迁移配置文件失败: {e}")
+        print(f"  迁移配置文件失败: {e}")
         return False
 
 
@@ -191,14 +215,13 @@ class AppConfig:
                 "508": "77/48_83/48", 
                 "509": "77/48_83/48",
 
-                "252": "65_77/27_77/42_77/48_83/48",
-
                 "508N": "77/27_77/42_77/48_83/48", 
                 "509N": "77/27_77/42_77/48_83/48",
-                
-                "256": "39/31_77/27_77/42_77/48_83/48", 
+
+                "252": "65_77/27_77/42_77/48_83/48",
                 "252A": "39/31_77/27_77/42_77/48_83/48",
                 
+                "256": "All Size",           
                 "262": "All Size"
             }
 
@@ -227,7 +250,7 @@ class AppConfig:
     @classmethod
     def load(cls, config_path: str = None) -> 'AppConfig':
         """
-        从JSON文件加载配置
+        从JSON文件加载配置（兼容Win7）
         
         Args:
             config_path: 配置文件路径，如果为None则使用默认路径
@@ -238,32 +261,41 @@ class AppConfig:
         if config_path is None:
             config_path = get_config_path()
         
+        print(f"正在尝试加载配置文件: {config_path}")
+        
         if os.path.exists(config_path):
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                # 修复Win7编码问题：使用utf-8-sig编码
+                with open(config_path, 'r', encoding='utf-8-sig') as f:
                     data = json.load(f)
-                print(f"配置文件已加载: {config_path}")
+                print(f"配置文件已成功加载: {config_path}")
                 return cls(**data)
+            except json.JSONDecodeError as e:
+                print(f"配置文件格式错误，使用默认配置: {e}")
             except Exception as e:
                 print(f"加载配置文件失败，使用默认配置: {e}")
         else:
             print(f"配置文件不存在: {config_path}")
+            # 尝试迁移旧配置
             migrate_old_config()
             
             if os.path.exists(config_path):
                 try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path, 'r', encoding='utf-8-sig') as f:
                         data = json.load(f)
                     print(f"配置文件已加载（从旧配置迁移）: {config_path}")
                     return cls(**data)
                 except Exception as e:
                     print(f"加载迁移后的配置文件失败，使用默认配置: {e}")
         
-        return cls()
+        # 首次运行时，使用默认配置并保存到文件
+        config = cls()
+        config.save(config_path)
+        return config
     
     def save(self, config_path: str = None):
         """
-        保存配置到JSON文件
+        保存配置到JSON文件（兼容Win7）
         
         Args:
             config_path: 配置文件路径，如果为None则使用默认路径
@@ -271,14 +303,23 @@ class AppConfig:
         if config_path is None:
             config_path = get_config_path()
         
+        print(f"正在尝试保存配置到: {config_path}")
+        
         try:
             data = asdict(self)
             
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            # 确保目录存在
+            config_dir = os.path.dirname(config_path)
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir, exist_ok=True)
+                print(f"已创建配置目录: {config_dir}")
             
-            with open(config_path, 'w', encoding='utf-8') as f:
+            # 修复Win7编码问题：使用utf-8-sig编码保存
+            with open(config_path, 'w', encoding='utf-8-sig') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"配置已保存到: {config_path}")
+            print(f"配置已成功保存到: {config_path}")
+        except PermissionError as e:
+            print(f"保存配置失败：权限不足，请检查配置目录权限: {e}")
         except Exception as e:
             print(f"保存配置文件失败: {e}")
     
