@@ -159,18 +159,31 @@ export async function readConfigFile(): Promise<Record<string, unknown> | null> 
   if (!IS_TAURI) return null
   try {
     const bytes = await readFile(await configPath())
-    const text = new TextDecoder('utf-8').decode(bytes)
+    // 旧版 Python 用 utf-8-sig 保存, 带 BOM, 必须容忍
+    const text = new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '')
     return JSON.parse(text) as Record<string, unknown>
   } catch {
     return null
   }
 }
 
-/** 写回配置 JSON */
-export async function writeConfigFile(data: unknown): Promise<void> {
+/**
+ * 写回配置 JSON。
+ *
+ * 键名转成 snake_case, 与旧版 Python 版保持一致 —— 这样用户在两版之间
+ * 来回切换时配置仍然通用。mergeConfig 同时认两种键名, 但写出一致更
+ * 利于人工排查配置内容。
+ */
+export async function writeConfigFile(data: Record<string, unknown>): Promise<void> {
   if (!IS_TAURI) return
   const dir = await configDir()
   await mkdir(dir, { recursive: true })
-  const json = JSON.stringify(data, null, 2)
+
+  const snake: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    snake[k.replace(/([A-Z])/g, '_$1').toLowerCase()] = v
+  }
+
+  const json = JSON.stringify(snake, null, 2)
   await fsWriteFile(await configPath(), new TextEncoder().encode(json))
 }

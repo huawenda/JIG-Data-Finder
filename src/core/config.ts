@@ -174,7 +174,15 @@ export function createDefaultConfig(): AppConfig {
 /** 全局配置单例, 等价于 Python 版的 `config` 模块级实例 */
 export const config: AppConfig = createDefaultConfig()
 
-/** 把磁盘配置合并到默认配置上, 只接受已知字段 */
+/**
+ * 把磁盘配置合并到默认配置上, 只接受已知字段。
+ *
+ * 关键: 旧版 Python 版写的是 snake_case (`table_default_row_height`),
+ * 新版字段是 camelCase (`tableDefaultRowHeight`)。不做键名转换的话,
+ * 每个字段都匹配不上, 配置读取等于空转 —— 用户升级后设置全丢。
+ *
+ * 所以这里同时尝试两种键名。
+ */
 export function mergeConfig(
   stored: Record<string, unknown> | null | undefined,
 ): AppConfig {
@@ -182,7 +190,11 @@ export function mergeConfig(
   if (!stored || typeof stored !== 'object') return base
 
   for (const key of Object.keys(base) as (keyof AppConfig)[]) {
-    const v = stored[key]
+    // 先按原样取, 再按 snake_case 取 (兼容旧版 Python 写出的配置)
+    const direct = stored[key]
+    const snake = stored[toSnakeCase(key)]
+    const v = direct !== undefined && direct !== null ? direct : snake
+
     if (v === undefined || v === null) continue
     // 类型不匹配时保留默认值, 避免损坏的配置拖垮应用
     if (Array.isArray(base[key]) !== Array.isArray(v)) continue
@@ -190,6 +202,11 @@ export function mergeConfig(
     ;(base as unknown as Record<string, unknown>)[key] = v
   }
   return base
+}
+
+/** tableDefaultRowHeight -> table_default_row_height */
+function toSnakeCase(s: string): string {
+  return s.replace(/([A-Z])/g, '_$1').toLowerCase()
 }
 
 /** 覆盖式更新运行时配置 */

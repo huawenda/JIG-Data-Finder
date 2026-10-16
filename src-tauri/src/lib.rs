@@ -4,6 +4,7 @@
 //! 所有数据处理都在前端 TypeScript (src/core) 完成, 这里不含业务逻辑,
 //! 保证 Python 迁移过来的计算结果可被纯函数测试覆盖。
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::{
@@ -54,15 +55,25 @@ fn is_force_quit() -> bool {
 /// 必须与旧版 Python 版 (config.py get_config_dir) 完全一致, 否则
 /// 新版读不到旧版留下的设置, 用户升级后要重新配置一遍。
 ///
-/// 刻意不用 tauri 的 app_config_dir —— 那会按 bundle identifier 命名成
-/// `com.jigdatafinder.app`, 与旧路径不同。
+/// 注意: **不能**用 tauri 的 `app_data_dir()` / `app_config_dir()`。
+/// 那两个都会按 bundle identifier 再套一层, 实际返回
+/// `%APPDATA%\com.jigdatafinder.app\...`, 与旧版路径不同 —— 真机验证
+/// 时正是踩了这个坑, 配置读写全部落到了错误目录。
+///
+/// 这里直接从环境变量取 %APPDATA%, 与 Python 的 os.getenv('APPDATA')
+/// 语义一致; 环境变量缺失时回退到用户目录手工拼接 (同 Python 版做法)。
 #[tauri::command]
-fn legacy_config_dir(app: tauri::AppHandle) -> Result<String, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法解析应用数据目录: {e}"))?;
-    Ok(dir.join("JIG Data Finder").to_string_lossy().to_string())
+fn legacy_config_dir() -> Result<String, String> {
+    let appdata = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            // 与 Python 版一致: APPDATA 缺失时手工构建
+            let home = std::env::var_os("USERPROFILE")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."));
+            home.join("AppData").join("Roaming")
+        });
+    Ok(appdata.join("JIG Data Finder").to_string_lossy().to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
