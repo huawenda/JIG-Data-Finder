@@ -1,0 +1,77 @@
+/*
+ * JIG Data Finder — 设计令牌
+ *
+ * 主题:「设备状态板」。参照车间工位旁的排产看板, 而非通用后台模板。
+ * 核心约束:
+ *   1. 表格里只允许出现一种彩色 —— --signal (尺寸不匹配)。
+ *      小计/总计靠字重、底纹、线条区分, 让异常自己跳出来。
+ *   2. 数字必须等宽 + 表格数字, 纵向可扫读比较。
+ *   3. 工序是有序的, 画成一条轨道。
+ *
+ * 字体只用系统内置 (Tauri 离线运行, 不能挂网络字体):
+ *   Segoe UI Variable Display — Win11 自带光学字号版本, 比普通 Segoe UI 更有质感
+ *   Cascadia Mono          — Win11 自带, 比 Consolas 更有仪器气质
+ */
+
+:root {
+  /* ---- 墨色 (冷调近黑, 非纯黑) ---- */
+  --ink: #16191d;
+  --ink-2: #5b6472;
+  --ink-3: #8a93a0;
+
+  /* ---- 界面结构 ---- */
+  --rule: #dde2e8;
+  --rule-strong: #c3cad4;
+  --board: #edeff2;
+  --surface: #ffffff;
+  --band: #f0f2f5;
+
+  /* ---- 强调色: 深孔雀石绿, 刻意避开 SaaS 蓝 ---- */
+  --accent: #0d5c63;
+  --accent-hover: #0a4a50;
+  --accent-soft: #e3f0f0;
+  --accent-ring: rgba(13, 92, 99, 0.32);
+
+  /* ---- 设备信号色 ---- */
+  --signal: #c22a1f; /* 尺寸不匹配 — 信号灯红 */
+  --signal-soft: #fdeceb;
+  --lamp: #b45309; /* 载入中 — 琥珀, 设备运行灯 */
+  --ok: #1e7a4d;
+
+  /* ---- 字体 ---- */
+  --font-ui: 'Segoe UI Variable Display', 'Microsoft YaHei UI', 'DengXian',
+    system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, 'Microsoft YaHei UI', ui-monospace,
+    monospace;
+
+  /* ---- 间距 ---- */
+  --gap: 16px;
+  --head-h: 44px;
+  --foot-h: 28px;
+  --row-h: 30px;
+  --side-w: 260px;
+
+  --radius-sm: 3px;
+  --radius: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 深色跟随系统: 仅翻转表面与墨色, 保留强调色与信号色的辨识度 */
+  :root {
+    --ink: #e6e9ee;
+    --ink-2: #a3abb8;
+    --ink-3: #6f7889;
+    --rule: #2b3038;
+    --rule-strong: #3b424d;
+    --board: #14171b;
+    --surface: #1b1f25;
+    --band: #232830;
+    --accent: #3fa8a4;
+    --accent-hover: #55bfbb;
+    --accent-soft: #14312f;
+    --signal: #ef5c4d;
+    --signal-soft: #33191a;
+    --lamp: #d97706;
+    --ok: #34a96b;
+  }
+}
