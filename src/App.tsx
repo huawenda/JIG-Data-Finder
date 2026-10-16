@@ -81,19 +81,28 @@ export default function App() {
     // 读取磁盘配置 (含旧版 Python 版留下的 config.json)。
     // mergeConfig 只接受已知字段, 损坏或过期的文件不会拖垮启动。
     readConfigFile()
-      .then((stored) => {
-        if (cancelled || !stored) return
-        const merged = mergeConfig(stored)
-        setCfg(merged)
-        setSizeValidation(merged.sizeValidationEnabled)
-        applyConfig(merged)
-        document.documentElement.style.setProperty(
-          '--row-h',
-          `${merged.tableDefaultRowHeight}px`,
-        )
+      .then(async (stored) => {
+        if (cancelled) return
+
+        if (stored) {
+          const merged = mergeConfig(stored)
+          setCfg(merged)
+          setSizeValidation(merged.sizeValidationEnabled)
+          applyConfig(merged)
+          document.documentElement.style.setProperty(
+            '--row-h',
+            `${merged.tableDefaultRowHeight}px`,
+          )
+          return
+        }
+
+        // 首次运行: 把默认配置落盘, 与旧版 Python 版
+        // AppConfig.load() 的行为保持一致 —— 否则用户改了设置之后,
+        // 配置目录还是空的, 排查问题时看不到任何痕迹。
+        await writeConfigFile(globalConfig)
       })
       .catch(() => {
-        /* 配置损坏时静默使用默认值, 不打扰用户 */
+        /* 配置损坏或无写权限时静默使用默认值, 不打扰用户 */
       })
 
     return () => {

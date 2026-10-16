@@ -174,7 +174,7 @@ export async function readConfigFile(): Promise<Record<string, unknown> | null> 
  * 来回切换时配置仍然通用。mergeConfig 同时认两种键名, 但写出一致更
  * 利于人工排查配置内容。
  */
-export async function writeConfigFile(data: Record<string, unknown>): Promise<void> {
+export async function writeConfigFile(data: object): Promise<void> {
   if (!IS_TAURI) return
   const dir = await configDir()
   await mkdir(dir, { recursive: true })
