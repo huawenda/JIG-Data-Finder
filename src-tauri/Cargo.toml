@@ -26,9 +26,25 @@ serde_json = "1"
 default = []
 custom-protocol = ["tauri/custom-protocol"]
 
+# release 用于发布 (体积最小), dev-profile 用于日常迭代。
+#
+# 取舍说明:
+#   fat-lto  + codegen-units=1 -> 每次链接 15-25 分钟, 因为改一行前端 JS
+#                             也要重跑全程序优化, 迭代无法忍受。
+#   thin-lto + codegen-units=16 -> 约 1-2 分钟, 体积只大几百 KB。
+# 桌面应用的 exe 本就只有几 MB, 那点差异无感知, 所以选后者。
 [profile.release]
 panic = "abort"
+codegen-units = 16
+lto = "thin"
+opt-level = "s"
+strip = true
+
+# 正式发布时用: cargo tauri build --profile dist
+# 体积更小, 但只在发版前跑一次。
+[profile.dist]
+inherits = "release"
 codegen-units = 1
-lto = true
+lto = "fat"
 opt-level = "s"
 strip = true

@@ -8,7 +8,6 @@ import { queryData, processSourceData, NOT_FOUND } from './core/query'
 import { processClipboardContent } from './core/clipboard'
 import { validateSizeMatch, rulesFromConfig } from './core/validate'
 import { readExcel, validateSource, writeExcel } from './core/excel'
-import { writeFile } from '@tauri-apps/plugin-fs'
 import type { Row, Table } from './core/table'
 import { emptyTable } from './core/table'
 
@@ -22,6 +21,8 @@ import {
   pickExcelFile,
   pickSavePath,
   pickDirectory,
+  readPickedFile,
+  saveToFile,
   withTimestamp,
 } from './ui/bridge'
 
@@ -127,11 +128,14 @@ export default function App() {
   const browse = useCallback(async () => {
     const picked = await pickExcelFile(cfg.defaultFileDialogPath)
     if (picked) {
+      setStatus('busy')
+      setLog(`正在读取 ${picked.name} …`)
       try {
-        const res = await fetch(pathToUrl(picked.path))
-        const buf = await res.arrayBuffer()
+        const buf = await readPickedFile(picked.path)
         await loadFromBuffer(buf, picked.name, picked.path)
       } catch (e) {
+        setStatus('error')
+        setLog('打开失败')
         setToast({ kind: 'error', text: `打开失败:${errText(e)}` })
       }
     } else if (!IS_TAURI) {
@@ -232,7 +236,7 @@ export default function App() {
 
     try {
       const buf = writeExcel(t.table)
-      await writeFile(path, new Uint8Array(buf))
+      await saveToFile(path, new Uint8Array(buf))
       setToast({ kind: 'ok', text: `已导出 ${basename(path)}` })
     } catch (e) {
       setToast({ kind: 'error', text: `导出失败:${errText(e)}` })
@@ -557,9 +561,4 @@ function filterActive(rows: Row[], cfg: AppConfig): Row[] {
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
-}
-
-/** Tauri 资产协议路径 -> 可 fetch 的 URL */
-function pathToUrl(path: string): string {
-  return `http://asset.localhost/${encodeURIComponent(path).replace(/%2F/g, '/')}`
 }

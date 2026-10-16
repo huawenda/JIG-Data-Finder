@@ -6,6 +6,7 @@
  */
 
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { readFile, writeFile as fsWriteFile } from '@tauri-apps/plugin-fs'
 
 export const IS_TAURI =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in (window as never)
@@ -31,6 +32,29 @@ export async function pickExcelFile(
   })
   if (typeof picked !== 'string') return null
   return { path: picked, name: basename(picked) }
+}
+
+/**
+ * 读取用户选中的文件内容。
+ *
+ * 必须走 tauri-plugin-fs 的 readFile —— WebView 的 fetch 无法访问
+ * 本地磁盘路径, 也不存在 asset.localhost 这种 URL。
+ */
+export async function readPickedFile(path: string): Promise<ArrayBuffer> {
+  if (!IS_TAURI) throw new Error('浏览器环境请用文件选择框读取')
+  const bytes = await readFile(path)
+  // plugin-fs 返回 Uint8Array, xlsx 需要 ArrayBuffer。
+  // 只复制底层缓冲区, 不重复拷贝数据本体。
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer
+}
+
+/** 把内容写到用户选中的位置 */
+export async function saveToFile(path: string, data: Uint8Array): Promise<void> {
+  if (!IS_TAURI) throw new Error('浏览器环境无法写入本地文件')
+  await fsWriteFile(path, data)
 }
 
 export async function pickSavePath(
