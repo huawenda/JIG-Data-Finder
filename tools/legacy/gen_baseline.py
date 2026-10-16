@@ -1,11 +1,15 @@
 """
-Phase 0 基线快照生成脚本 (一次性工具,不属于产品代码)
+Phase 0 基线快照生成脚本 —— 旧版 PySide2 代码的唯一活跃使用者
 
-用途: 用当前 Python 版真实逻辑跑 jig数据整理.xlsx, 把查询/透视/审查结果
+用途: 用旧版 Python 真实逻辑跑 jig数据整理.xlsx, 把查询/透视/审查结果
 序列化到 tests/fixtures/expected.json, 作为 Tauri TypeScript 版本迁移的
 一致性比对基线。
 
-运行:  python tools/gen_baseline.py
+位置说明: Tauri 版已完成物理隔离 (src/ 下是纯 TypeScript), 旧版代码
+移到这里保留, 仅为重新生成基线快照。若基线已稳定且不再需要回退对照,
+本目录可整体删除, 不影响产品构建与运行。
+
+运行:  python tools/legacy/gen_baseline.py
 """
 
 import json
@@ -13,9 +17,10 @@ import os
 import sys
 from datetime import datetime
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-SRC = os.path.join(ROOT, "src")
+# tools/legacy/gen_baseline.py -> tools/legacy -> tools -> 仓库根
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 旧版代码在本目录下的 src/ (tools/legacy/src)
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
 sys.path.insert(0, SRC)
 
 from app.config import config  # noqa: E402

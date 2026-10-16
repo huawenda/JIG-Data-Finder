@@ -1,5 +1,5 @@
 /**
- * 透视表生成 —— 对应 Python 版 src/core/worker.py 的 _generate_pivot
+ * 透视表生成 —— 对应 Python 版 tools/legacy/src/core/worker.py 的 _generate_pivot
  *
  * 输出的视觉约定 (UI 依赖这些关键词, 不能改):
  *   - P/N 小计行: CST ID = "--",  UI 据此加粗 + 浅蓝底

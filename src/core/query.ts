@@ -1,5 +1,5 @@
 /**
- * 查询与审查数据处理 —— 对应 Python 版 src/core/worker.py 的
+ * 查询与审查数据处理 —— 对应 Python 版 tools/legacy/src/core/worker.py 的
  * query_data 与 process_source_data
  *
  * 两者的列处理、尺寸映射、排序逻辑完全一致, 抽成同一个内部函数,

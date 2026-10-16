@@ -1,5 +1,5 @@
 /**
- * 应用配置 —— 对应 Python 版 src/app/config.py
+ * 应用配置 —— 对应 Python 版 tools/legacy/src/app/config.py
  *
  * 迁移要点:
  * 1. Python 版 jig_size_mapping 曾被误嵌在 error_messages 初始化分支内,

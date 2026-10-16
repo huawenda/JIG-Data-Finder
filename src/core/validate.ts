@@ -1,5 +1,5 @@
 /**
- * 尺寸验证算法 —— 对应 Python 版 src/core/data_model.py 的 _validate_size_match
+ * 尺寸验证算法 —— 对应 Python 版 tools/legacy/src/core/data_model.py 的 _validate_size_match
  *
  * 这是迁移中风险最高的纯函数: 任何一处规则顺序或边界判断的偏差, 都会导致
  * 红字标记的行集合不同, 用户据此判断治具是否可用。
