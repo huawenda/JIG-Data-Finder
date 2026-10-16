@@ -98,8 +98,10 @@ export function generatePivot(
   )
 
   // --- 6. 手工组装: 每个 P/N 一个小计行, 后面跟各 CST 明细行 ---
+  // 中间行允许 number, 仅在最终输出时统一转成字符串 (0 -> "")
+  type DraftRow = Record<string, string | number>
   const KEY_TOTAL = cfg.keywordTotal
-  const newRows: Row[] = []
+  const newRows: DraftRow[] = []
   const grandTotal: Record<string, number> = {}
   let grandTotalCount = 0
 
@@ -146,7 +148,7 @@ export function generatePivot(
     grandTotalCount += subTotalVal
 
     // A. 小计行 (CST = "--", 触发 UI 加粗)
-    const headerRow: Row = { 'P/N': pn, 'CST ID': SUMMARY_CST }
+    const headerRow: DraftRow = { 'P/N': pn, 'CST ID': SUMMARY_CST }
     for (const col of dataCols) headerRow[col] = subSums[col] ?? 0
     headerRow[KEY_TOTAL] = subTotalVal
     newRows.push(headerRow)
@@ -158,7 +160,7 @@ export function generatePivot(
       let rowSum = 0
       for (const [, n] of bucket) rowSum += n
 
-      const detailRow: Row = { 'P/N': '', 'CST ID': cst }
+      const detailRow: DraftRow = { 'P/N': '', 'CST ID': cst }
       for (const col of dataCols) detailRow[col] = bucket.get(col) ?? 0
       detailRow[KEY_TOTAL] = rowSum
       newRows.push(detailRow)
@@ -166,7 +168,7 @@ export function generatePivot(
   }
 
   // --- 7. 全表总计行 ---
-  const totalRow: Row = { 'P/N': KEY_TOTAL, 'CST ID': '' }
+  const totalRow: DraftRow = { 'P/N': KEY_TOTAL, 'CST ID': '' }
   for (const col of dataCols) totalRow[col] = grandTotal[col] ?? 0
   totalRow[KEY_TOTAL] = grandTotalCount
   newRows.push(totalRow)

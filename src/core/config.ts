@@ -187,7 +187,7 @@ export function mergeConfig(
     // 类型不匹配时保留默认值, 避免损坏的配置拖垮应用
     if (Array.isArray(base[key]) !== Array.isArray(v)) continue
     if (typeof base[key] !== typeof v) continue
-    ;(base as Record<string, unknown>)[key] = v
+    ;(base as unknown as Record<string, unknown>)[key] = v
   }
   return base
 }
