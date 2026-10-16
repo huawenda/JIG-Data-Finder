@@ -531,9 +531,14 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-.grid__td.mono {
-  justify-content: flex-start;
-}
+/*
+ * 等宽列同样居中。
+ *
+ * 曾经给 .mono 设过 justify-content: flex-start, 想让 P/N、Jig ID 这类
+ * 标识符左对齐更易扫读, 但表头是居中的, 两边对不上 —— 内容短的列偏移
+ * 最明显 (Jig 对应型号 偏 36.6px, P/N 偏 3.5px)。
+ * 用户反馈后改为与表头一致: 全部居中。
+ */
 
 /* 行号列: 灰底、弱化, 不与内容争视线 */
 .grid__td--idx {
