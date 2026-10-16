@@ -17,6 +17,13 @@ export interface GridProps {
   emptyTitle: string
   emptyHint: string
   keywordTotal?: string
+  /**
+   * 需要贴右固定显示的汇总列名 (如 "总计")。
+   * 富余宽度不分配给它, 而是分给前面的列, 让它始终紧贴右边缘。
+   */
+  pinLastColumn?: string
+  /** 行高 (px), 需与 CSS --row-h 保持一致 */
+  rowHeight?: number
 }
 
 /** 判断一行是否为小计行 (CST ID == "--") */
@@ -75,8 +82,9 @@ export default function Grid({
   emptyTitle,
   emptyHint,
   keywordTotal = '总计',
+  pinLastColumn,
   rowHeight = DEFAULT_ROW_H,
-}: GridProps & { rowHeight?: number }) {
+}: GridProps) {
   // 外层 wrap 负责画边框并提供可用宽度, 内层 scroll 负责滚动。
   // 分开是为了避免"滚动条宽度影响可用宽度, 可用宽度又影响列宽"的循环。
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -109,18 +117,6 @@ export default function Grid({
     overscan: OVERSCAN,
   })
 
-  if (isEmpty) {
-    return (
-      <div className="grid-wrap">
-        <div className="empty">
-          <div className="empty__rule" />
-          <div className="empty__title">{emptyTitle}</div>
-          <div className="empty__hint">{emptyHint}</div>
-        </div>
-      </div>
-    )
-  }
-
   const offset = showRowNumbers ? 1 : 0
   const sizeIdx = sizeColumn ? table.columns.indexOf(sizeColumn) : -1
   const items = virtualizer.getVirtualItems()
@@ -149,9 +145,13 @@ export default function Grid({
    * 空间重新分配给各列 —— 各列内容长度不同, 分到的量也不同, 于是又
    * 出现错位 (实测最大偏 79px, 且随列号递增)。
    *
-   * 解决办法: 测量滚动容器的实际可用宽度, 把富余量全部塞给最后一列。
-   * 这样除最后一列外, 每列都是精确值, 表头与数据行必然对齐;
-   * 最后一列多出来的宽度两边一致, 也不会错位。
+   * 解决办法: 测量滚动容器的实际可用宽度, 由 JS 精确分配富余量。
+   * 表头与所有数据行共用同一份 grid-template-columns, 必然对齐。
+   *
+   * 富余量给谁: 默认给最后一列; 但若指定了 pinLastColumn (汇总列
+   * "总计"), 则分给它前面的列 —— 汇总列必须紧贴右边缘, 数字才好
+   * 纵向扫读对比。之前一律给最后一列, 导致总计列又宽又靠中间,
+   * 视觉上不像是收尾列。
    *
    * 注意必须测 .grid-scroll 的 clientWidth, 不能测外层 .grid-wrap:
    * 横向滚动条出现/消失会改变 scroll 的可用宽度, 而表格宽度是根据
@@ -176,22 +176,30 @@ export default function Grid({
     return () => ro.disconnect()
   }, [])
 
+  // 汇总列在 column 索引中的位置 (-1 表示无)
+  const pinIdx = useMemo(
+    () => (pinLastColumn ? table.columns.indexOf(pinLastColumn) : -1),
+    [pinLastColumn, table.columns],
+  )
+
   const resolved = useMemo(() => {
     const sum = baseWidths.reduce((a, b) => a + b, 0)
-    // 容器已测量且比列宽总和宽 -> 富余量给最后一列。
-    // 若列宽总和本来就超过容器, 不做任何调整: 表格进入横向滚动,
-    // 此时各列严格按给定宽度排布, 本来就对齐。
-    const lastIdx = baseWidths.length - 1
-    const cols =
-      wrapW > sum && lastIdx >= 0
-        ? baseWidths.map((w, i) => (i === lastIdx ? w + (wrapW - sum) : w))
-        : baseWidths
-    return {
-      cols,
-      sum: cols.reduce((a, b) => a + b, 0),
-      idxW,
+    if (wrapW <= sum) {
+      // 列宽总和本来就超过容器: 不调整, 表格进入横向滚动,
+      // 此时各列严格按给定宽度排布, 本来就对齐。
+      return { cols: baseWidths, sum, idxW }
     }
-  }, [baseWidths, wrapW, idxW])
+
+    // 富余量分给谁:
+    //  - 有汇总列 -> 分给汇总列之前的那一列, 让汇总列贴右
+    //  - 无汇总列 -> 仍给最后一列 (通用兜底)
+    const target =
+      pinIdx > 0 ? pinIdx - 1 : baseWidths.length - 1
+    const extra = wrapW - sum
+    const cols = baseWidths.map((w, i) => (i === target ? w + extra : w))
+
+    return { cols, sum: wrapW, idxW }
+  }, [baseWidths, wrapW, idxW, pinIdx])
 
   /*
    * grid-template-columns 的值。表头与所有数据行共用这一份定义,
@@ -201,6 +209,26 @@ export default function Grid({
     ...(showRowNumbers ? [`${resolved.idxW}px`] : []),
     ...resolved.cols.map((w) => `${w}px`),
   ].join(' ')
+
+  /*
+   * 空状态必须放在所有 Hook 之后。
+   *
+   * 之前它写在使用 ResizeObserver 的 useLayoutEffect 之前, 于是
+   * "空表 -> 有数据" 切换时 Hook 调用数量发生跳变, React 抛 #310
+   * (渲染时对象结构变了), 整个界面白屏。Rules of Hooks 要求每次
+   * 渲染执行相同数量、相同顺序的 Hook, 条件 return 不能出现在中间。
+   */
+  if (isEmpty) {
+    return (
+      <div className="grid-wrap" ref={wrapRef}>
+        <div className="empty">
+          <div className="empty__rule" />
+          <div className="empty__title">{emptyTitle}</div>
+          <div className="empty__hint">{emptyHint}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="grid-wrap" ref={wrapRef}>
@@ -219,8 +247,12 @@ export default function Grid({
                 No
               </div>
             )}
-            {table.columns.map((c) => (
-              <div key={c} className="grid__th" role="columnheader">
+            {table.columns.map((c, ci) => (
+              <div
+                key={c}
+                className={ci === pinIdx ? 'grid__th grid__th--total' : 'grid__th'}
+                role="columnheader"
+              >
                 {c}
               </div>
             ))}
@@ -262,6 +294,12 @@ export default function Grid({
                     const cls = [
                       isNumericColumn(c) ? 'num' : isMonoColumn(c) ? 'mono' : '',
                       isSize && bad ? 'bad bad-bg' : '',
+                      /*
+                       * 汇总列: 数字右对齐 + 左侧竖规。
+                       * 右对齐是报表惯例 —— 数字位数不同时个位能扫成
+                       * 一条竖线; 竖规则把它与明细列在视觉上分开。
+                       */
+                      ci === pinIdx ? 'grid__td--total' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')

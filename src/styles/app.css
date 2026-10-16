@@ -585,6 +585,25 @@ textarea {
   border-left: 2px solid var(--ok);
 }
 
+/* ---- 汇总列 (总计): 数字右对齐 + 左侧竖规 ---- */
+
+/*
+ * 右对齐是报表惯例: 数字位数不同时, 个位能扫成一条竖线, 比居中
+ * 更容易纵向比较大小。左侧竖规把它与明细列在视觉上分开。
+ */
+.grid__th--total,
+.grid__td--total {
+  justify-content: flex-end;
+  padding-right: 14px;
+}
+
+.grid__td--total {
+  border-left: 1px solid var(--rule-strong);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 /* ---- 唯一允许的彩色: 尺寸不匹配 ---- */
 
 .grid__td.bad {

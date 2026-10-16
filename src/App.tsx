@@ -556,6 +556,7 @@ export default function App() {
               table={queryPivot}
               showRowNumbers={false}
               rowHeight={cfg.tableDefaultRowHeight}
+              pinLastColumn={cfg.keywordTotal}
               emptyTitle="还没有结果透视"
               emptyHint="先执行一次查询, 这里会按 P/N 和工序汇总命中记录。"
             />
@@ -565,6 +566,7 @@ export default function App() {
               table={currentPivot}
               showRowNumbers={false}
               rowHeight={cfg.tableDefaultRowHeight}
+              pinLastColumn={cfg.keywordTotal}
               emptyTitle="还没有加载源数据"
               emptyHint="选择 MES 导出的 Excel 文件开始。支持 .xlsx 与 .xls, 程序只读取不修改源文件。"
             />
