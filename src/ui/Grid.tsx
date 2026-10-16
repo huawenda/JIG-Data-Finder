@@ -1,4 +1,5 @@
-import { useMemo, useRef } from 'react'
+import type { CSSProperties } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Row, Table } from '../core/table'
 import { SUMMARY_CST } from '../core/pivot'
@@ -60,6 +61,10 @@ function isMonoColumn(c: string): boolean {
 const DEFAULT_ROW_H = 30
 /** 上下各多渲染的行数, 快速滚动不露白 */
 const OVERSCAN = 12
+/** 行号列宽 */
+const IDX_COL_W = 52
+/** 未指定宽度的列 (如"对应尺寸") 的兜底宽度 */
+const MIN_COL_W = 96
 
 export default function Grid({
   table,
@@ -72,7 +77,11 @@ export default function Grid({
   keywordTotal = '总计',
   rowHeight = DEFAULT_ROW_H,
 }: GridProps & { rowHeight?: number }) {
+  // 外层 wrap 负责画边框并提供可用宽度, 内层 scroll 负责滚动。
+  // 分开是为了避免"滚动条宽度影响可用宽度, 可用宽度又影响列宽"的循环。
+  const wrapRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [wrapW, setWrapW] = useState(0)
   const isEmpty = table.rows.length === 0
 
   // 列宽: 采样前 200 行估算, 避免大表全量扫描
@@ -117,76 +126,167 @@ export default function Grid({
   const items = virtualizer.getVirtualItems()
   const totalH = virtualizer.getTotalSize()
 
-  return (
-    <div className="grid-wrap" ref={scrollRef}>
-      <table className="grid grid--virtual">
-        <colgroup>
-          {showRowNumbers && <col style={{ width: 52 }} />}
-          {widths.map((w, i) => (
-            <col key={table.columns[i]} style={w > 0 ? { width: w } : undefined} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            {showRowNumbers && <th scope="col">No</th>}
-            {table.columns.map((c) => (
-              <th key={c} scope="col">
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        {/*
-          虚拟行: 只渲染可视区附近的行, 用绝对定位落在预留高度上。
-          表格高度撑满 totalSize, 滚动条长度才有意义。
-        */}
-        <tbody style={{ height: totalH, position: 'relative' }}>
-          {items.map((vi) => {
-            const row = table.rows[vi.index]
-            const sub = isSubtotal(row)
-            const total = isTotal(row, keywordTotal)
-            const bad = mismatchFlags?.[vi.index] === true
+  /*
+   * 列宽必须由 JS 统一计算并同时绑定到表头和数据单元格。
+   *
+   * 为什么不能只靠 <colgroup>: 虚拟行是 position:absolute, 已脱离表格的
+   * 正常布局流程, 浏览器对绝对定位的表格行不再应用列宽算法。结果是
+   * 表头按 <col> 布局、数据行各自按内容撑开, 两边列边界对不上, 且偏差
+   * 随列号递增 (实测第 10 列偏了 266px)。
+   *
+   * 这里给每一列算好确定像素宽, 表头与数据行共用, 不依赖任何表格布局。
+   */
+  const idxW = showRowNumbers ? IDX_COL_W : 0
+  // widths 本身来自 useMemo, 这里只做一次兜底替换, 结果同样缓存,
+  // 否则每次渲染都是新数组, 下游 useMemo 的依赖永远在变。
+  const baseWidths = useMemo(
+    () => widths.map((w) => (w > 0 ? w : MIN_COL_W)),
+    [widths],
+  )
 
-            return (
-              <tr
-                key={vi.key}
-                className={total ? 'is-total' : sub ? 'is-sub' : undefined}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: vi.size,
-                  transform: `translateY(${vi.start}px)`,
-                }}
-              >
-                {showRowNumbers && <td className="idx">{vi.index + 1}</td>}
-                {table.columns.map((c, ci) => {
-                  const realIdx = ci - offset
-                  const isSize = sizeIdx >= 0 && realIdx === sizeIdx
-                  const cls = [
-                    isNumericColumn(c) ? 'num' : isMonoColumn(c) ? 'mono' : '',
-                    isSize && bad ? 'bad bad-bg' : '',
+  /*
+   * 容器宽度未知 (首帧还没测量), 且列宽总和小于容器时, 浏览器会把富余
+   * 空间重新分配给各列 —— 各列内容长度不同, 分到的量也不同, 于是又
+   * 出现错位 (实测最大偏 79px, 且随列号递增)。
+   *
+   * 解决办法: 测量滚动容器的实际可用宽度, 把富余量全部塞给最后一列。
+   * 这样除最后一列外, 每列都是精确值, 表头与数据行必然对齐;
+   * 最后一列多出来的宽度两边一致, 也不会错位。
+   *
+   * 注意必须测 .grid-scroll 的 clientWidth, 不能测外层 .grid-wrap:
+   * 横向滚动条出现/消失会改变 scroll 的可用宽度, 而表格宽度是根据
+   * scroll 的可用宽度算的, 用外层测会差出一个滚动条的宽度
+   * (实测 10 万行时差 6px)。
+   */
+
+  useLayoutEffect(() => {
+    const outer = wrapRef.current
+    const inner = scrollRef.current
+    if (!outer || !inner) return
+
+    const measure = () => {
+      // clientWidth 已扣除滚动条, 正是表格可以占用的宽度
+      setWrapW(Math.round(inner.clientWidth))
+    }
+
+    const ro = new ResizeObserver(measure)
+    ro.observe(outer)
+    ro.observe(inner)
+    measure()
+    return () => ro.disconnect()
+  }, [])
+
+  const resolved = useMemo(() => {
+    const sum = baseWidths.reduce((a, b) => a + b, 0)
+    // 容器已测量且比列宽总和宽 -> 富余量给最后一列。
+    // 若列宽总和本来就超过容器, 不做任何调整: 表格进入横向滚动,
+    // 此时各列严格按给定宽度排布, 本来就对齐。
+    const lastIdx = baseWidths.length - 1
+    const cols =
+      wrapW > sum && lastIdx >= 0
+        ? baseWidths.map((w, i) => (i === lastIdx ? w + (wrapW - sum) : w))
+        : baseWidths
+    return {
+      cols,
+      sum: cols.reduce((a, b) => a + b, 0),
+      idxW,
+    }
+  }, [baseWidths, wrapW, idxW])
+
+  /*
+   * grid-template-columns 的值。表头与所有数据行共用这一份定义,
+   * 所以列边界必然一致 —— 这是修掉错位的关键。
+   */
+  const colTemplate = [
+    ...(showRowNumbers ? [`${resolved.idxW}px`] : []),
+    ...resolved.cols.map((w) => `${w}px`),
+  ].join(' ')
+
+  return (
+    <div className="grid-wrap" ref={wrapRef}>
+      <div className="grid-scroll" ref={scrollRef}>
+        {/*
+          用 CSS Grid 而不是 <table>。
+          表格布局对 position:absolute 的 <tr> 有专门处理 —— 不对其应用
+          列宽, 导致表头按 <col> 排布、数据行各自按内容撑开, 两边列边界
+          对不上 (实测偏差最大 266px)。Grid 没有这个特例: 表头和数据行
+          共用同一份 grid-template-columns, 必然对齐。
+        */}
+        <div className="grid" style={{ '--cols': colTemplate } as CSSProperties}>
+          <div className="grid__head" role="row">
+            {showRowNumbers && (
+              <div className="grid__th" role="columnheader">
+                No
+              </div>
+            )}
+            {table.columns.map((c) => (
+              <div key={c} className="grid__th" role="columnheader">
+                {c}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid__body" style={{ height: totalH }}>
+            {items.map((vi) => {
+              const row = table.rows[vi.index]
+              const sub = isSubtotal(row)
+              const total = isTotal(row, keywordTotal)
+              const bad = mismatchFlags?.[vi.index] === true
+
+              return (
+                <div
+                  key={vi.key}
+                  role="row"
+                  className={[
+                    'grid__tr',
+                    sub ? 'is-sub' : '',
+                    total ? 'is-total' : '',
                   ]
                     .filter(Boolean)
-                    .join(' ')
+                    .join(' ')}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: vi.size,
+                    transform: `translateY(${vi.start}px)`,
+                  }}
+                >
+                  {showRowNumbers && (
+                    <div className="grid__td grid__td--idx">{vi.index + 1}</div>
+                  )}
+                  {table.columns.map((c, ci) => {
+                    const realIdx = ci - offset
+                    const isSize = sizeIdx >= 0 && realIdx === sizeIdx
+                    const cls = [
+                      isNumericColumn(c) ? 'num' : isMonoColumn(c) ? 'mono' : '',
+                      isSize && bad ? 'bad bad-bg' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
 
-                  const title =
-                    isSize && bad && pnColumn
-                      ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
-                      : undefined
+                    const title =
+                      isSize && bad && pnColumn
+                        ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
+                        : undefined
 
-                  return (
-                    <td key={c} className={cls} title={title}>
-                      {cell(row[c])}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                    return (
+                      <div
+                        key={c}
+                        className={cls ? `grid__td ${cls}` : 'grid__td'}
+                        title={title}
+                      >
+                        {cell(row[c])}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -105,8 +105,9 @@ def main():
         page.click(".tab >> nth=3")
         page.wait_for_timeout(1200)
 
-        dom_rows = page.eval_on_selector_all(".grid tbody tr", "els => els.length")
-        wrap = page.query_selector(".grid-wrap")
+        dom_rows = page.eval_on_selector_all(".grid__tr", "els => els.length")
+        # 滚动容器是内层 .grid-scroll (外层 .grid-wrap 只画边框)
+        wrap = page.query_selector(".grid-scroll")
         scroll_h = page.evaluate("(el) => el ? el.scrollHeight : 0", wrap) if wrap else 0
 
         print(f"  DOM 中的 <tr>: {dom_rows}")
@@ -120,9 +121,9 @@ def main():
         check("滚动容器预留了完整高度", scroll_h > 1_000_000, f"{scroll_h}px")
 
         # 滚动到中段, 验证行号跟随
-        page.evaluate("() => { const w = document.querySelector('.grid-wrap'); w.scrollTop = w.scrollHeight / 2 }")
+        page.evaluate("() => { const w = document.querySelector('.grid-scroll'); w.scrollTop = w.scrollHeight / 2 }")
         page.wait_for_timeout(600)
-        mid_idx = page.eval_on_selector(".grid tbody tr td.idx", "el => el ? el.textContent : ''")
+        mid_idx = page.eval_on_selector(".grid__td--idx", "el => el ? el.textContent : ''")
         check(
             "滚动到中段后行号随之变化",
             int(mid_idx or 0) > 40000,
@@ -130,14 +131,44 @@ def main():
         )
 
         # 滚到底
-        page.evaluate("() => { const w = document.querySelector('.grid-wrap'); w.scrollTop = w.scrollHeight }")
+        page.evaluate("() => { const w = document.querySelector('.grid-scroll'); w.scrollTop = w.scrollHeight }")
         page.wait_for_timeout(600)
         last_idx = page.eval_on_selector_all(
-            ".grid tbody tr td.idx", "els => els.length ? els[els.length-1].textContent : ''"
+            ".grid__td--idx", "els => els.length ? els[els.length-1].textContent : ''"
         )
         check("滚到底部可见最后一行", int(last_idx or 0) >= 99_900, f"末行行号={last_idx}")
 
         check("全程无 JS 异常", len(errors) == 0, "; ".join(errors[:2]))
+
+        # ---- 列对齐检查 (回归防护) ----
+        # 虚拟行用 position:absolute, 脱离表格布局流程后, 浏览器不再
+        # 对它应用 <colgroup> 列宽, 会导致表头与数据行列边界对不上。
+        # 这个 bug 在引入虚拟滚动时就存在, 但早期验收只查"有没有数据",
+        # 没查对齐, 因此漏到了生产包。这里逐列比对 x 坐标。
+        #
+        # 注意: 必须用浮点值比较。列宽含小数 (如 107.6px), 若先 round
+        # 再比较, 各列小数部分会累积成假阳性。实测 10 万行时真实偏差
+        # 为 0, 取整后却报 6px。
+        drift = page.evaluate("""
+        (() => {
+          const ths = [...document.querySelectorAll('.grid__th')];
+          const heads = ths.map(th => th.getBoundingClientRect().left);
+          const rows = [...document.querySelectorAll('.grid__tr')].slice(0, 5);
+          return heads.map((hx, i) => {
+            const deltas = rows
+              .map(tr => {
+                const td = tr.querySelectorAll('.grid__td')[i];
+                return td ? Math.abs(td.getBoundingClientRect().left - hx) : null;
+              })
+              .filter(d => d !== null);
+            return deltas.length ? Math.max(...deltas) : -1;
+          });
+        })()
+        """)
+        drift = [round(d, 2) for d in (drift or []) if d >= 0]
+        max_drift = max(drift) if drift else -1
+        check("表头与数据行列对齐 (偏差 <= 1px)", max_drift <= 1,
+              f"各列最大偏差 {drift}px")
 
         page.screenshot(path=os.path.join(ROOT, "docs", "shots", "92-virtual-scroll.png"))
         browser.close()

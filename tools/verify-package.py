@@ -256,7 +256,7 @@ def main():
             # 全量透视
             cdp.ev("document.querySelectorAll('.tab')[2].click()")
             time.sleep(1.2)
-            rows = cdp.ev("document.querySelectorAll('.grid tbody tr').length")
+            rows = cdp.ev("document.querySelectorAll('.grid__tr').length")
             check("全量透视有数据", (rows or 0) > 0, f"DOM 行数={rows}")
 
             stages = cdp.ev("document.querySelectorAll('.stage').length")
@@ -264,7 +264,7 @@ def main():
 
             total = cdp.ev("""
               (() => {
-                const tds = [...document.querySelectorAll('.grid tr.is-total td')];
+                const tds = [...document.querySelectorAll('.grid__tr.is-total .grid__td')];
                 return tds.length ? tds[tds.length-1].textContent : '';
               })()
             """)
@@ -273,7 +273,7 @@ def main():
             # 审查页
             cdp.ev("document.querySelectorAll('.tab')[3].click()")
             time.sleep(1.5)
-            review_rows = cdp.ev("document.querySelectorAll('.grid tbody tr').length")
+            review_rows = cdp.ev("document.querySelectorAll('.grid__tr').length")
             check("审查页有数据", (review_rows or 0) > 0, f"DOM 行数={review_rows}")
 
             # 查询
@@ -292,11 +292,11 @@ def main():
                 .find(b => b.textContent.includes('开始查询'))?.click()
             """)
             time.sleep(1.2)
-            q_rows = cdp.ev("document.querySelectorAll('.grid tbody tr').length")
+            q_rows = cdp.ev("document.querySelectorAll('.grid__tr').length")
             check("查询返回 3 行 (2 命中 + 1 未找到)", q_rows == 3, f"实际={q_rows}")
 
             notfound = cdp.ev(
-                "document.querySelector('.grid tbody')?.textContent.includes('【未找到】')"
+                "document.querySelector('.grid__body')?.textContent.includes('【未找到】')"
             )
             check("未命中标记为 【未找到】", notfound is True)
     else:

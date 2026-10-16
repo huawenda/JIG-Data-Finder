@@ -427,80 +427,116 @@ textarea {
 .grid-wrap {
   position: relative;
   min-height: 0;
+  /*
+   * 必须显式给出高度: 内层 grid-scroll 依赖 height:100% 撑开,
+   * 而 grid-wrap 自身是 flex 子项, 默认不会自动填满剩余空间。
+   * flex:1 由 .main > .grid-wrap 提供 (见文件前部), 这里补的是
+   * "作为 flex 子项时的高度传递", 二者缺一会导致虚拟滚动失效。
+   */
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  overflow: auto;
-}
-
-table.grid {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 12.5px;
+  overflow: hidden;
 }
 
 /*
- * 虚拟滚动: 行高由 JS (Grid.tsx ROW_H) 决定并写在行内 style 上,
- * 这里不能设 height, 否则会与 transform 定位打架。
- * 表头仍然 sticky, 行绝对定位在 tbody 的预留高度内。
+ * 真正滚动的是内层 grid-scroll, 外层 grid-wrap 只负责画边框。
+ * 分开的理由: 列宽需要按外层的内容宽度计算, 而滚动条在里层 ——
+ * 若共用一个元素, 会出现"滚动条宽度影响可用宽度, 可用宽度又影响
+ * 列宽"的循环依赖。
  */
-.grid--virtual thead {
-  /* 表格布局下 sticky 表头需要显式背景, 否则下方行会透出来 */
+.grid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 空状态时没有内层 grid-scroll, 让 .empty 直接在 wrap 里居中 */
+.grid-wrap:has(> .empty) {
+  display: grid;
+  place-items: center;
+}
+
+/*
+ * 数据表用 CSS Grid 实现, 不用 <table>。
+ *
+ * 原因: 虚拟滚动要求数据行 position:absolute, 而浏览器对绝对定位的
+ * <tr> 不应用列宽 —— 表头按 <col> 排布、数据行各自按内容撑开, 两边
+ * 列边界对不上, 且偏差随列号递增 (实测第 10 列偏 266px)。
+ * Grid 没有这个特例: 表头和数据行共用同一份 grid-template-columns。
+ *
+ * 语义上放弃了 table/tr/td, 改用 role="row"/"rowgroup"/"columnheader"
+ * 保留无障碍语义。
+ */
+.grid {
+  display: grid;
+  grid-template-columns: var(--cols);
+  width: max-content;
+  min-width: 100%;
+  font-size: 12.5px;
+}
+
+.grid__head {
+  display: contents;
+}
+
+.grid__th {
   position: sticky;
   top: 0;
   z-index: 2;
-}
-
-.grid--virtual tbody tr {
-  /* 行内已有 height + translateY, 这里只保证单元格不撑高 */
-  box-sizing: border-box;
-}
-
-.grid thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px 10px;
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.03em;
-  text-align: center;
   white-space: nowrap;
   color: var(--ink-2);
   background: var(--surface);
   border-bottom: 1px solid var(--rule-strong);
 }
 
-.grid tbody td {
-  height: var(--row-h);
+.grid__body {
+  position: relative;
+  grid-column: 1 / -1;
+}
+
+.grid__tr {
+  display: grid;
+  grid-template-columns: var(--cols);
+  left: 0;
+  will-change: transform;
+}
+
+.grid__td {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   padding: 0 10px;
-  text-align: center;
-  color: var(--ink);
-  border-bottom: 1px solid var(--rule);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 320px;
+  white-space: nowrap;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
 }
 
-/* 虚拟行的高度来自行内 style, td 必须用 inherit 而不是固定值 */
-.grid--virtual tbody td {
-  height: inherit;
-}
-
-/* 数字与标识符: 等宽 + 表格数字, 纵向可扫读 */
-.grid td.num,
-.grid td.mono {
+/* 数字与标识符: 等宽表格数字, 纵向可扫读 */
+.grid__td.num,
+.grid__td.mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-.grid td.mono {
-  text-align: left;
+.grid__td.mono {
+  justify-content: flex-start;
 }
 
-.grid td.idx {
+/* 行号列: 灰底、弱化, 不与内容争视线 */
+.grid__td--idx {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
@@ -509,56 +545,53 @@ table.grid {
   user-select: none;
 }
 
-.grid tbody tr:hover td {
+.grid__tr:hover .grid__td {
   background: var(--accent-soft);
 }
 
-.grid tbody tr:hover td.idx {
+.grid__tr:hover .grid__td--idx {
   background: var(--band);
 }
 
 /* ---- 小计行: 字重 + 底纹 + 左侧竖规 (分组标记) ---- */
 
-.grid tr.is-sub td {
+.grid__tr.is-sub .grid__td {
   font-weight: 600;
   background: var(--band);
   border-bottom-color: var(--rule-strong);
 }
 
-.grid tr.is-sub td.idx {
+.grid__tr.is-sub .grid__td--idx {
   border-left: 2px solid var(--accent);
-  padding-left: 7px;
 }
 
-.grid tr.is-sub:hover td {
+.grid__tr.is-sub:hover .grid__td {
   background: var(--band);
 }
 
 /* ---- 总计行: 上下双横线 (表格排版惯例, 天然读作底线) ---- */
 
-.grid tr.is-total td {
+.grid__tr.is-total .grid__td {
   font-weight: 650;
   border-top: 3px double var(--rule-strong);
-  background: var(--surface);
 }
 
-.grid tr.is-total td.idx {
+.grid__tr.is-total .grid__td--idx {
   border-left: 2px solid var(--ok);
-  padding-left: 7px;
 }
 
 /* ---- 唯一允许的彩色: 尺寸不匹配 ---- */
 
-.grid td.bad {
+.grid__td.bad {
   color: var(--signal);
   font-weight: 600;
 }
 
-.grid td.bad-bg {
+.grid__td.bad-bg {
   background: var(--signal-soft);
 }
 
-.grid tbody tr:hover td.bad-bg {
+.grid__tr:hover .grid__td.bad-bg {
   background: var(--signal-soft);
 }
 
