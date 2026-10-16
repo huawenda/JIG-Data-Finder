@@ -1,0 +1,186 @@
+/**
+ * 透视表生成 —— 对应 Python 版 src/core/worker.py 的 _generate_pivot
+ *
+ * 输出的视觉约定 (UI 依赖这些关键词, 不能改):
+ *   - P/N 小计行: CST ID = "--",  UI 据此加粗 + 浅蓝底
+ *   - 全表总计行: P/N = "总计",    UI 据此加粗 + 浅绿底
+ *   - 计数为 0 时写成空字符串, 保持表格清爽
+ *
+ * 处理顺序与 Python 完全一致, 任何调换都会导致基线比对失败:
+ *   1. Lot ID 回填空 CST ID
+ *   2. 生产中筛选 (工程 == productionIndicatorCode 的 P/N)
+ *   3. 排除 pivotExcludeNames 黑名单工程
+ *   4. pivot_table: index=[P/N, CST ID], columns=工程名, values=Jig ID, count
+ *   5. 按 engineeringConfig.order 排序列
+ *   6. 手工组装 小计行/明细行/总计行
+ *   7. 列序 = [P/N, CST ID, ...工程列, 总计],  0 -> ""
+ */
+
+import type { AppConfig } from './config'
+import type { Row, Table } from './table'
+import { emptyTable } from './table'
+
+/** 汇总行的哨兵值, UI 样式依赖它 */
+export const SUMMARY_CST = '--'
+
+/**
+ * 生成透视表。
+ *
+ * @param df  源数据行
+ * @param filterProduction  是否只保留"生产中"的 P/N
+ * @param cfg 配置 (工程排序、排除名单等)
+ */
+export function generatePivot(
+  df: ReadonlyArray<Row>,
+  filterProduction: boolean,
+  cfg: AppConfig,
+): Table {
+  if (df.length === 0) return emptyTable()
+
+  // --- 1. 数据预处理: CST ID 为空时用 Lot ID 回填 ---
+  let work = df
+  if (work.some((r) => 'Lot ID' in r)) {
+    work = work.map((r) =>
+      r['CST ID'] === '' ? { ...r, 'CST ID': r['Lot ID'] ?? '' } : r,
+    )
+  }
+
+  // --- 2. 生产中筛选: 只保留含关键工程代码的 P/N ---
+  const engCodeCol = '工程'
+  if (filterProduction) {
+    const indicator = cfg.productionIndicatorCode
+    const prodPns = new Set(
+      work.filter((r) => r[engCodeCol] === indicator).map((r) => r['P/N']),
+    )
+    work = work.filter((r) => prodPns.has(r['P/N']))
+    if (work.length === 0) return emptyTable()
+  }
+
+  // --- 3. 排除工程黑名单 ---
+  const engColumn = cfg.pivotColumnKey
+  if (cfg.pivotExcludeNames.length > 0) {
+    const excluded = new Set(cfg.pivotExcludeNames)
+    work = work.filter((r) => !excluded.has(r[engColumn]))
+  }
+
+  // --- 4. 基础透视: 统计每个 (P/N, CST ID) 在各工程下的 Jig ID 数量 ---
+  // key = P/N + '\u0000' + CST ID, 避免分隔符出现在真实值里
+  const counts = new Map<string, Map<string, number>>()
+  const pnOrder: string[] = []
+  const seenPn = new Set<string>()
+
+  for (const r of work) {
+    const pn = r['P/N'] ?? ''
+    const cst = r['CST ID'] ?? ''
+    const eng = r[engColumn] ?? ''
+    const key = `${pn}\u0000${cst}`
+
+    let bucket = counts.get(key)
+    if (!bucket) {
+      bucket = new Map<string, number>()
+      counts.set(key, bucket)
+    }
+    bucket.set(eng, (bucket.get(eng) ?? 0) + 1)
+
+    if (!seenPn.has(pn)) {
+      seenPn.add(pn)
+      pnOrder.push(pn)
+    }
+  }
+
+  // --- 5. 收集并排序列 (按 engineeringConfig.order, 未知工程排最后) ---
+  const allEngs = new Set<string>()
+  for (const bucket of counts.values()) {
+    for (const eng of bucket.keys()) allEngs.add(eng)
+  }
+  const dataCols = [...allEngs].sort(
+    (a, b) => (cfg.engineeringConfig[a]?.order ?? 999) - (cfg.engineeringConfig[b]?.order ?? 999),
+  )
+
+  // --- 6. 手工组装: 每个 P/N 一个小计行, 后面跟各 CST 明细行 ---
+  const KEY_TOTAL = cfg.keywordTotal
+  const newRows: Row[] = []
+  const grandTotal: Record<string, number> = {}
+  let grandTotalCount = 0
+
+  // 按字典序排列每个 P/N 的 CST 列表。
+  // 注意: Python 的 pivot_table 会自动排序索引, 这里必须同样排序,
+  // 否则明细行顺序与旧版不同, 导出结果对不上。
+  const cstByPn = new Map<string, string[]>()
+  for (const key of counts.keys()) {
+    const [pn, cst] = key.split('\u0000')
+    const list = cstByPn.get(pn)
+    if (list) {
+      if (!list.includes(cst)) list.push(cst)
+    } else {
+      cstByPn.set(pn, [cst])
+    }
+  }
+  for (const [pn, list] of cstByPn) {
+    list.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    cstByPn.set(pn, list)
+  }
+
+  // P/N 也按字典序 (与 pivot_table 的索引排序一致)
+  pnOrder.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+
+  for (const pn of pnOrder) {
+    const csts = cstByPn.get(pn) ?? []
+
+    // 该 P/N 的各工程小计
+    const subSums: Record<string, number> = {}
+    let subTotalVal = 0
+    for (const cst of csts) {
+      const bucket = counts.get(`${pn}\u0000${cst}`)
+      if (!bucket) continue
+      for (const [eng, n] of bucket) {
+        subSums[eng] = (subSums[eng] ?? 0) + n
+        subTotalVal += n
+      }
+    }
+
+    // 累加全局总计
+    for (const col of dataCols) {
+      grandTotal[col] = (grandTotal[col] ?? 0) + (subSums[col] ?? 0)
+    }
+    grandTotalCount += subTotalVal
+
+    // A. 小计行 (CST = "--", 触发 UI 加粗)
+    const headerRow: Row = { 'P/N': pn, 'CST ID': SUMMARY_CST }
+    for (const col of dataCols) headerRow[col] = subSums[col] ?? 0
+    headerRow[KEY_TOTAL] = subTotalVal
+    newRows.push(headerRow)
+
+    // B. 明细行 (P/N 留空, 视觉上属于上方小计)
+    for (const cst of csts) {
+      const bucket = counts.get(`${pn}\u0000${cst}`)
+      if (!bucket) continue
+      let rowSum = 0
+      for (const [, n] of bucket) rowSum += n
+
+      const detailRow: Row = { 'P/N': '', 'CST ID': cst }
+      for (const col of dataCols) detailRow[col] = bucket.get(col) ?? 0
+      detailRow[KEY_TOTAL] = rowSum
+      newRows.push(detailRow)
+    }
+  }
+
+  // --- 7. 全表总计行 ---
+  const totalRow: Row = { 'P/N': KEY_TOTAL, 'CST ID': '' }
+  for (const col of dataCols) totalRow[col] = grandTotal[col] ?? 0
+  totalRow[KEY_TOTAL] = grandTotalCount
+  newRows.push(totalRow)
+
+  // --- 8. 列序整理 + 0 -> "" ---
+  const colsOrder = ['P/N', 'CST ID', ...dataCols, KEY_TOTAL]
+  const rows = newRows.map((r) => {
+    const out: Row = {}
+    for (const c of colsOrder) {
+      const v = r[c]
+      out[c] = v === 0 || v === undefined ? '' : String(v)
+    }
+    return out
+  })
+
+  return { columns: colsOrder, rows }
+}

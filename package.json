@@ -11,10 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "verify:e2e": "vite-node tools/e2e-verify.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "verify": "npm run typecheck && npm run test"
+    "verify": "npm run typecheck && npm run test && npm run verify:e2e"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.20.5",
