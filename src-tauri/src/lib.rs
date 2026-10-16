@@ -19,6 +19,9 @@ const MENU_QUIT: &str = "quit";
 /// 记录窗口是否已被用户显式关闭 (点"退出程序"才真正退出)
 static FORCE_QUIT: Mutex<bool> = Mutex::new(false);
 
+/// 关闭窗口时是否隐藏到托盘, 由前端启动时同步
+static CLOSE_TO_TRAY: Mutex<bool> = Mutex::new(true);
+
 fn set_force_quit(value: bool) {
     if let Ok(mut flag) = FORCE_QUIT.lock() {
         *flag = value;
@@ -27,6 +30,18 @@ fn set_force_quit(value: bool) {
 
 fn should_force_quit() -> bool {
     FORCE_QUIT.lock().map(|f| *f).unwrap_or(false)
+}
+
+fn close_to_tray() -> bool {
+    CLOSE_TO_TRAY.lock().map(|f| *f).unwrap_or(true)
+}
+
+/// 前端在启动和保存设置时调用, 同步"关闭到托盘"开关
+#[tauri::command]
+fn set_close_to_tray(enabled: bool) {
+    if let Ok(mut flag) = CLOSE_TO_TRAY.lock() {
+        *flag = enabled;
+    }
 }
 
 #[tauri::command]
@@ -47,7 +62,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![is_force_quit])
+        .invoke_handler(tauri::generate_handler![is_force_quit, set_close_to_tray])
         .setup(|app| {
             let show_item = MenuItem::with_id(app, MENU_SHOW, "显示主窗口", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, MENU_QUIT, "退出程序", true, None::<&str>)?;
@@ -86,7 +101,8 @@ pub fn run() {
                         };
                         match (button, button_state) {
                             (MouseButton::Left, MouseButtonState::Up) => {
-                                if win.is_visible() {
+                                // is_visible 返回 Result, 出错时按"不可见"处理并显示窗口
+                                if win.is_visible().unwrap_or(false) {
                                     let _ = win.hide();
                                 } else {
                                     let _ = win.show();
@@ -104,17 +120,17 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // 用户点右上角关闭: 若启用了关闭到托盘, 则隐藏而非退出。
-                // 该开关保存在 %APPDATA% 配置里, 由前端决定, 这里通过
-                // 事件阻止默认退出并把控制权交给前端。
-                if !should_force_quit() {
-                    let handle = window.clone();
-                    // 询问前端是否应关闭到托盘 (默认关闭)
-                    handle
-                        .eval("window.__onCloseRequested && window.__onCloseRequested()")
-                        .ok();
-                    api.prevent_close();
+                // 托盘菜单的"退出程序"会置位 force_quit, 此时真正关闭。
+                if should_force_quit() {
+                    return;
                 }
+                // 用户点右上角关闭: 若配置启用了关闭到托盘, 隐藏窗口继续运行。
+                // 配置由前端在启动时通过 set_close_to_tray 同步过来,
+                // 避免宿主层去解析 %APPDATA% 下的 JSON。
+                if close_to_tray() {
+                    let _ = window.hide();
+                }
+                api.prevent_close();
             }
         })
         .run(tauri::generate_context!())

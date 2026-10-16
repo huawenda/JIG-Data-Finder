@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx'
 import baseline from '../tests/fixtures/expected.json'
 import { createDefaultConfig } from '../src/core/config'
 import { generatePivot } from '../src/core/pivot'
+import { queryData, processSourceData } from '../src/core/query'
 import { validateSizeMatch, rulesFromConfig } from '../src/core/validate'
 import { processClipboardContent } from '../src/core/clipboard'
 import type { Row, Table } from '../src/core/table'
@@ -40,6 +41,19 @@ function loadSource(): { columns: string[]; rows: Row[] } {
 
 function tableOf(key: 'pivot_all' | 'pivot_prod'): Table {
   const p = baseline[key] as { columns: string[]; rows: string[][] }
+  return {
+    columns: p.columns,
+    rows: p.rows.map((cells) => {
+      const r: Row = {}
+      p.columns.forEach((c, i) => (r[c] = cells[i] ?? ''))
+      return r
+    }),
+  }
+}
+
+/** 从基线的任意 {columns, rows} 结构还原 Table */
+function tableOfGeneric(holder: { columns: string[]; rows: string[][] }): Table {
+  const p = holder
   return {
     columns: p.columns,
     rows: p.rows.map((cells) => {
@@ -161,6 +175,65 @@ check(`剪贴板 ${pyClip.length} 条与基线一致`, clipDiffs === 0, `${clipD
 const pyMissing = baseline.query_with_missing as { detail: { columns: string[]; rows: string[][] } }
 const missingRows = pyMissing.detail.rows.filter((r) => r.includes('【未找到】'))
 check('基线包含"【未找到】"占位行', missingRows.length > 0, `${missingRows.length} 行`)
+
+// --- 6. 查询明细逐格比对 ---
+function compareTable(label: string, ts: Table, py: Table): void {
+  const colsOk = JSON.stringify(ts.columns) === JSON.stringify(py.columns)
+  check(`${label} 列序一致`, colsOk, `TS=${JSON.stringify(ts.columns)} PY=${JSON.stringify(py.columns)}`)
+
+  const rowsOk = ts.rows.length === py.rows.length
+  check(`${label} 行数一致`, rowsOk, `TS=${ts.rows.length} PY=${py.rows.length}`)
+
+  if (!colsOk || !rowsOk) return
+
+  let diffs = 0
+  const samples: string[] = []
+  for (let i = 0; i < ts.rows.length; i += 1) {
+    for (const c of ts.columns) {
+      const a = ts.rows[i][c] ?? ''
+      const b = py.rows[i][c] ?? ''
+      if (a !== b) {
+        diffs += 1
+        if (samples.length < 3) samples.push(`row${i}.${c}: TS="${a}" PY="${b}"`)
+      }
+    }
+  }
+  check(`${label} 全部单元格一致`, diffs === 0, `${diffs} 处不同, 例: ${samples.join(' | ')}`)
+}
+
+// 查询: 全命中
+{
+  const inputIds = (baseline.query as { input_ids: string[] }).input_ids
+  const ts = queryData(src.rows, inputIds, config)
+  compareTable(
+    'query 明细',
+    ts,
+    tableOfGeneric((baseline.query as { detail: { columns: string[]; rows: string[][] } }).detail),
+  )
+}
+
+// 查询: 含未命中
+{
+  const inputIds = (baseline.query_with_missing as { input_ids: string[] }).input_ids
+  const ts = queryData(src.rows, inputIds, config)
+  compareTable(
+    'query_with_missing 明细',
+    ts,
+    tableOfGeneric(
+      (baseline.query_with_missing as { detail: { columns: string[]; rows: string[][] } }).detail,
+    ),
+  )
+}
+
+// 审查页数据
+{
+  const ts = processSourceData(src.rows, config)
+  compareTable(
+    'review 数据',
+    ts,
+    tableOfGeneric(baseline.review as { columns: string[]; rows: string[][] }),
+  )
+}
 
 console.log(`\n=== 结果: ${failures === 0 ? '全部通过' : failures + ' 项失败'} ===\n`)
 process.exit(failures === 0 ? 0 : 1)
