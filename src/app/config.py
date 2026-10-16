@@ -205,6 +205,12 @@ class AppConfig:
                 "clear_confirm": "确定要清空输入和查询结果吗？",
             }
 
+        # 初始化尺寸映射
+        # 注意: 必须独立于 error_messages 判断。历史上此块被误嵌在
+        # "if self.error_messages is None" 内, 导致从配置文件加载时
+        # (cls(**data) 传入 error_messages) 整个分支被跳过, jig_size_mapping
+        # 保持 None, "对应尺寸"列恒为空、尺寸验证全部失效。
+        if self.jig_size_mapping is None:
             self.jig_size_mapping = {
                 "184": "65", "420A": "65", "420B": "65", 
                 "477": "65", "502": "65", "502A": "65",
