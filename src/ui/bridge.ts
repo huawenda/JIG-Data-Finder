@@ -6,7 +6,9 @@
  */
 
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { readFile, writeFile as fsWriteFile } from '@tauri-apps/plugin-fs'
+import { readFile, writeFile as fsWriteFile, mkdir } from '@tauri-apps/plugin-fs'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { invoke } from '@tauri-apps/api/core'
 
 export const IS_TAURI =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in (window as never)
@@ -104,4 +106,71 @@ export function withTimestamp(
     `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
     `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
   return `${stem}${ts}${ext}`
+}
+
+/* ============ 剪贴板 ============ */
+
+/**
+ * 读取剪贴板文本。
+ *
+ * 必须走 tauri-plugin-clipboard-manager 而不是 navigator.clipboard:
+ * WebView2 里 navigator.clipboard.readText 需要额外的用户激活与权限,
+ * 在 onPaste 里调用基本会被拒绝。旧版 Qt 用的是系统级剪贴板, 这里对齐。
+ *
+ * 失败时返回 null, 调用方退回浏览器默认粘贴行为。
+ */
+export async function readClipboardText(): Promise<string | null> {
+  if (!IS_TAURI) {
+    try {
+      return await navigator.clipboard.readText()
+    } catch {
+      return null
+    }
+  }
+  try {
+    return await readText()
+  } catch {
+    return null
+  }
+}
+
+/* ============ 配置持久化 ============ */
+
+/**
+ * 配置目录: %APPDATA%\JIG Data Finder
+ *
+ * 与旧版 Python 版 (config.py get_config_dir) 完全一致, 便于平滑升级:
+ * 新版首次启动能直接读到旧版留下的设置。
+ *
+ * 路径由 Rust 侧的 legacy_config_dir 命令给出, 前端不猜环境变量 ——
+ * APPDATA 可能被重定向到非 C 盘, 硬编码会读错位置。
+ */
+async function configDir(): Promise<string> {
+  return invoke<string>('legacy_config_dir')
+}
+
+/** 配置完整路径 */
+export async function configPath(): Promise<string> {
+  return `${await configDir()}\\config.json`
+}
+
+/** 读取配置 JSON; 不存在或损坏时返回 null */
+export async function readConfigFile(): Promise<Record<string, unknown> | null> {
+  if (!IS_TAURI) return null
+  try {
+    const bytes = await readFile(await configPath())
+    const text = new TextDecoder('utf-8').decode(bytes)
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+/** 写回配置 JSON */
+export async function writeConfigFile(data: unknown): Promise<void> {
+  if (!IS_TAURI) return
+  const dir = await configDir()
+  await mkdir(dir, { recursive: true })
+  const json = JSON.stringify(data, null, 2)
+  await fsWriteFile(await configPath(), new TextEncoder().encode(json))
 }

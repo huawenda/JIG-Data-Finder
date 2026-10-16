@@ -440,6 +440,23 @@ table.grid {
   font-size: 12.5px;
 }
 
+/*
+ * 虚拟滚动: 行高由 JS (Grid.tsx ROW_H) 决定并写在行内 style 上,
+ * 这里不能设 height, 否则会与 transform 定位打架。
+ * 表头仍然 sticky, 行绝对定位在 tbody 的预留高度内。
+ */
+.grid--virtual thead {
+  /* 表格布局下 sticky 表头需要显式背景, 否则下方行会透出来 */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.grid--virtual tbody tr {
+  /* 行内已有 height + translateY, 这里只保证单元格不撑高 */
+  box-sizing: border-box;
+}
+
 .grid thead th {
   position: sticky;
   top: 0;
@@ -465,6 +482,11 @@ table.grid {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 320px;
+}
+
+/* 虚拟行的高度来自行内 style, td 必须用 inherit 而不是固定值 */
+.grid--virtual tbody td {
+  height: inherit;
 }
 
 /* 数字与标识符: 等宽 + 表格数字, 纵向可扫读 */

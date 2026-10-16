@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 
-import { config as globalConfig } from './core/config'
+import { config as globalConfig, mergeConfig, applyConfig } from './core/config'
 import type { AppConfig } from './core/config'
 import { generatePivot } from './core/pivot'
 import { queryData, processSourceData, NOT_FOUND } from './core/query'
 import { processClipboardContent } from './core/clipboard'
 import { validateSizeMatch, rulesFromConfig } from './core/validate'
 import { readExcel, validateSource, writeExcel } from './core/excel'
+import type { RedMark } from './core/excel'
 import type { Row, Table } from './core/table'
 import { emptyTable } from './core/table'
 
@@ -23,6 +24,9 @@ import {
   pickDirectory,
   readPickedFile,
   saveToFile,
+  readClipboardText,
+  readConfigFile,
+  writeConfigFile,
   withTimestamp,
 } from './ui/bridge'
 
@@ -69,11 +73,37 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ---- 启动: 同步关闭到托盘开关给宿主层 ----
+  // ---- 启动: 读配置 + 同步关闭到托盘开关给宿主层 ----
   useEffect(() => {
-    if (IS_TAURI) {
-      invoke('set_close_to_tray', { enabled: cfg.closeToTray }).catch(() => {})
+    if (!IS_TAURI) return
+    let cancelled = false
+
+    // 读取磁盘配置 (含旧版 Python 版留下的 config.json)。
+    // mergeConfig 只接受已知字段, 损坏或过期的文件不会拖垮启动。
+    readConfigFile()
+      .then((stored) => {
+        if (cancelled || !stored) return
+        const merged = mergeConfig(stored)
+        setCfg(merged)
+        setSizeValidation(merged.sizeValidationEnabled)
+        applyConfig(merged)
+        document.documentElement.style.setProperty(
+          '--row-h',
+          `${merged.tableDefaultRowHeight}px`,
+        )
+      })
+      .catch(() => {
+        /* 配置损坏时静默使用默认值, 不打扰用户 */
+      })
+
+    return () => {
+      cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    if (!IS_TAURI) return
+    invoke('set_close_to_tray', { enabled: cfg.closeToTray }).catch(() => {})
   }, [cfg.closeToTray])
 
   // ---- 提示条自动消失 ----
@@ -172,26 +202,48 @@ export default function App() {
   }, [source, input, cfg])
 
   // ---- 智能粘贴 ----
-  const onPaste = useCallback(() => {
-    if (!cfg.clipboardAutoProcessEnabled) return
-    // 等浏览器写入剪贴板后再读
-    setTimeout(() => {
-      try {
-        const text = navigator.clipboard.readText()
-        if (text instanceof Promise) {
-          text.then((t) => {
-            const processed = processClipboardContent(t)
-            if (processed !== t) {
-              setInput((prev) => (prev ? `${prev.replace(/\s*$/, '')}\n${processed}` : processed))
-              setToast({ kind: 'info', text: `已从粘贴内容提取 ${processed.split(/\r?\n/).filter(Boolean).length} 个 Jig ID` })
-            }
-          })
-        }
-      } catch {
-        /* 剪贴板不可读时静默跳过, 不影响常规粘贴 */
+  /**
+   * 智能粘贴: 对应旧版 jig_id_text_edit.py 的双通道处理。
+   *
+   * 关键点 1: 必须用系统级剪贴板读取, 不能用 navigator.clipboard。
+   *   WebView2 里 navigator.clipboard.readText 在 onPaste 中基本必被拒绝,
+   *   那样"从邮件正文直接粘贴"这个核心卖点就是失效的。
+   *
+   * 关键点 2: 读取是异步的, 所以必须同步 preventDefault 先掐断浏览器
+   *   默认粘贴, 否则会出现"原文 + 提取结果"两份内容。
+   *
+   * 失败时返回 null, 文本框照常粘贴原文, 不阻塞用户。
+   */
+  const onPaste = useCallback(
+    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!cfg.clipboardAutoProcessEnabled) return
+
+      // 先无条件阻断默认粘贴, 后面按需手动写入
+      e.preventDefault()
+      e.stopPropagation()
+
+      const text = await readClipboardText()
+      if (!text) {
+        setToast({ kind: 'error', text: '无法读取剪贴板,请检查系统权限' })
+        return
       }
-    }, 0)
-  }, [cfg.clipboardAutoProcessEnabled])
+
+      const processed = processClipboardContent(text)
+      if (processed === text) {
+        // 纯净列表或无 ID: 按原文粘贴, 与旧版行为一致
+        setInput((prev) => prev + processed)
+        return
+      }
+
+      const count = processed.split(/\r?\n/).filter(Boolean).length
+      setInput((prev) => {
+        const base = prev.replace(/\s*$/, '')
+        return base ? `${base}\n${processed}` : processed
+      })
+      setToast({ kind: 'info', text: `已从粘贴内容提取 ${count} 个 Jig ID` })
+    },
+    [cfg.clipboardAutoProcessEnabled],
+  )
 
   // ---- 审查页当前视图 ----
   const reviewTable = useMemo(() => {
@@ -202,46 +254,6 @@ export default function App() {
       rows: reviewAll.rows.filter((r) => r['P/N'] === pnFilter),
     }
   }, [reviewAll, pnFilter])
-
-  // ---- 导出 ----
-  const exportCurrent = useCallback(async () => {
-    const targets: Record<TabId, { table: Table; name: string } | null> = {
-      detail: detail.rows.length ? { table: detail, name: '查询结果' } : null,
-      queryPivot: queryPivot.rows.length ? { table: queryPivot, name: '结果透视表' } : null,
-      pivot:
-        (pivotScope === 'all' ? pivotAll : pivotProd).rows.length
-          ? {
-              table: pivotScope === 'all' ? pivotAll : pivotProd,
-              name: '全量透视表',
-            }
-          : null,
-      review: reviewTable.rows.length ? { table: reviewTable, name: '审查数据' } : null,
-    }
-
-    const t = targets[tab]
-    if (!t) {
-      setToast({ kind: 'error', text: '当前页面没有可导出的数据' })
-      return
-    }
-
-    const fileName = cfg.exportTimestampEnabled
-      ? withTimestamp(`${t.name}.xlsx`)
-      : `${t.name}.xlsx`
-
-    const path = await pickSavePath(fileName, cfg.defaultExportPath)
-    if (!path) {
-      setToast({ kind: 'error', text: '未选择保存位置' })
-      return
-    }
-
-    try {
-      const buf = writeExcel(t.table)
-      await saveToFile(path, new Uint8Array(buf))
-      setToast({ kind: 'ok', text: `已导出 ${basename(path)}` })
-    } catch (e) {
-      setToast({ kind: 'error', text: `导出失败:${errText(e)}` })
-    }
-  }, [detail, queryPivot, pivotAll, pivotProd, pivotScope, reviewTable, tab, cfg])
 
   const uniquePns = useMemo(() => {
     if (reviewAll.rows.length === 0) return []
@@ -266,6 +278,59 @@ export default function App() {
   const detailFlags = useMemo(() => mismatchFlags(detail), [detail, mismatchFlags])
   const reviewFlags = useMemo(() => mismatchFlags(reviewTable), [reviewTable, mismatchFlags])
 
+  // ---- 导出 ----
+  const exportCurrent = useCallback(async () => {
+    const currentPivot = pivotScope === 'all' ? pivotAll : pivotProd
+
+    // 尺寸不匹配的红色标记只在查询页和审查页写入,
+    // 对应旧版 main_window.py 里 apply_style 的判定条件。
+    const targets: Record<TabId, { table: Table; name: string; red?: RedMark } | null> = {
+      detail: detail.rows.length
+        ? { table: detail, name: '查询结果', red: { rows: detailFlags, column: '对应尺寸' } }
+        : null,
+      queryPivot: queryPivot.rows.length ? { table: queryPivot, name: '结果透视表' } : null,
+      pivot: currentPivot.rows.length
+        ? { table: currentPivot, name: '全量透视表' }
+        : null,
+      review: reviewTable.rows.length
+        ? { table: reviewTable, name: '审查数据', red: { rows: reviewFlags, column: '对应尺寸' } }
+        : null,
+    }
+
+    const t = targets[tab]
+    if (!t) {
+      setToast({ kind: 'error', text: '当前页面没有可导出的数据' })
+      return
+    }
+
+    const fileName = cfg.exportTimestampEnabled
+      ? withTimestamp(`${t.name}.xlsx`)
+      : `${t.name}.xlsx`
+
+    const path = await pickSavePath(fileName, cfg.defaultExportPath)
+    if (!path) {
+      setToast({ kind: 'error', text: '未选择保存位置' })
+      return
+    }
+
+    try {
+      // 没有任何不匹配时不必传 red, 保持输出文件干净
+      const hasRed = t.red?.rows.some(Boolean) ?? false
+      const buf = writeExcel(t.table, hasRed ? t.red : undefined)
+      await saveToFile(path, new Uint8Array(buf))
+
+      const redCount = t.red?.rows.filter(Boolean).length ?? 0
+      setToast({
+        kind: 'ok',
+        text: redCount
+          ? `已导出 ${basename(path)},${redCount} 处尺寸不匹配已标红`
+          : `已导出 ${basename(path)}`,
+      })
+    } catch (e) {
+      setToast({ kind: 'error', text: `导出失败:${errText(e)}` })
+    }
+  }, [detail, detailFlags, queryPivot, pivotAll, pivotProd, pivotScope, reviewTable, reviewFlags, tab, cfg])
+
   // ---- 设置 ----
   const draftFrom = (c: AppConfig): SettingsDraft => ({
     defaultFileDialogPath: c.defaultFileDialogPath,
@@ -283,8 +348,15 @@ export default function App() {
     setCfg(next)
     setShowSettings(false)
     setSizeValidation(d.sizeValidationEnabled)
+    applyConfig(next)
     document.documentElement.style.setProperty('--row-h', `${d.tableDefaultRowHeight}px`)
-    setToast({ kind: 'ok', text: '设置已保存' })
+
+    // 写回磁盘, 让设置跨启动保留
+    writeConfigFile(next)
+      .then(() => setToast({ kind: 'ok', text: '设置已保存' }))
+      .catch((e) =>
+        setToast({ kind: 'error', text: `保存失败:${errText(e)}` }),
+      )
   }
 
   const currentPivot = pivotScope === 'all' ? pivotAll : pivotProd
@@ -463,6 +535,7 @@ export default function App() {
             <Grid
               table={detail}
               mismatchFlags={detailFlags}
+              rowHeight={cfg.tableDefaultRowHeight}
               sizeColumn="对应尺寸"
               pnColumn="P/N"
               emptyTitle="还没有查询结果"
@@ -473,6 +546,7 @@ export default function App() {
             <Grid
               table={queryPivot}
               showRowNumbers={false}
+              rowHeight={cfg.tableDefaultRowHeight}
               emptyTitle="还没有结果透视"
               emptyHint="先执行一次查询, 这里会按 P/N 和工序汇总命中记录。"
             />
@@ -481,6 +555,7 @@ export default function App() {
             <Grid
               table={currentPivot}
               showRowNumbers={false}
+              rowHeight={cfg.tableDefaultRowHeight}
               emptyTitle="还没有加载源数据"
               emptyHint="选择 MES 导出的 Excel 文件开始。支持 .xlsx 与 .xls, 程序只读取不修改源文件。"
             />
@@ -489,6 +564,7 @@ export default function App() {
             <Grid
               table={reviewTable}
               mismatchFlags={reviewFlags}
+              rowHeight={cfg.tableDefaultRowHeight}
               sizeColumn="对应尺寸"
               pnColumn="P/N"
               emptyTitle="没有可审查的数据"

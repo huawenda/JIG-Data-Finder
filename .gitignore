@@ -68,6 +68,9 @@ dist/
 dist-ssr/
 *.local
 
+# 压力测试生成的大文件 (tools/gen-big-xlsx.py 产出, 4MB+)
+big-test.xlsx
+
 # Tauri Rust 构建产物
 src-tauri/target/
 src-tauri/gen/

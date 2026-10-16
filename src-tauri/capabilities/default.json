@@ -23,6 +23,8 @@
     {
       "identifier": "fs:allow-write-file",
       "allow": [{ "path": "**" }]
-    }
+    },
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

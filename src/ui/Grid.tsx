@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Row, Table } from '../core/table'
 import { SUMMARY_CST } from '../core/pivot'
 
@@ -10,12 +11,11 @@ export interface GridProps {
   sizeColumn?: string
   /** P/N 列名, 用于尺寸校验取值 */
   pnColumn?: string
-  /** 自适应内容宽度的列 */
-  adaptiveColumns?: string[]
   /** 每行是否尺寸不匹配, 与 table.rows 同序 */
   mismatchFlags?: boolean[]
   emptyTitle: string
   emptyHint: string
+  keywordTotal?: string
 }
 
 /** 判断一行是否为小计行 (CST ID == "--") */
@@ -33,6 +33,34 @@ function cell(v: string | undefined): string {
   return v === undefined || v === '' ? '\u00A0' : v
 }
 
+/** 计数类列用等宽表格数字, 便于纵向扫读比较大小 */
+function isNumericColumn(c: string): boolean {
+  return c === 'Slot No' || c === '总计'
+}
+
+/** 标识符类列用等宽 */
+function isMonoColumn(c: string): boolean {
+  return (
+    c === 'Jig ID' ||
+    c === 'P/N' ||
+    c === 'Lot ID' ||
+    c === 'CST ID' ||
+    c === 'Jig 对应型号'
+  )
+}
+
+/**
+ * 行高常量。
+ *
+ * 必须与 CSS 的 --row-h 默认值一致 —— 虚拟滚动依赖精确的行高来算
+ * 每行的 translateY, 两边不一致会导致滚动错位或露白。
+ * 设置里改行高时会同步更新 --row-h, 此时此常量不再适用,
+ * 所以 Grid 通过 rowHeight prop 接收实际值。
+ */
+const DEFAULT_ROW_H = 30
+/** 上下各多渲染的行数, 快速滚动不露白 */
+const OVERSCAN = 12
+
 export default function Grid({
   table,
   showRowNumbers = true,
@@ -42,17 +70,18 @@ export default function Grid({
   emptyTitle,
   emptyHint,
   keywordTotal = '总计',
-}: GridProps & { keywordTotal?: string }) {
+  rowHeight = DEFAULT_ROW_H,
+}: GridProps & { rowHeight?: number }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = table.rows.length === 0
 
-  // 列宽: 自适应列按内容估算, 其余固定
+  // 列宽: 采样前 200 行估算, 避免大表全量扫描
   const widths = useMemo(() => {
     if (isEmpty) return [] as number[]
+    const sample = table.rows.slice(0, 200)
     return table.columns.map((col) => {
       if (col === sizeColumn) return 0
-      // 中文按 2 倍宽度估算, 避免表头被截断
       let max = [...col].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 2 : 1), 0)
-      const sample = table.rows.slice(0, 200)
       for (const r of sample) {
         const w = [...(r[col] ?? '')].reduce(
           (n, ch) => n + (ch.charCodeAt(0) > 255 ? 2 : 1),
@@ -63,6 +92,13 @@ export default function Grid({
       return Math.min(Math.max(max * 7.6 + 24, 68), 300)
     })
   }, [table, sizeColumn, isEmpty])
+
+  const virtualizer = useVirtualizer({
+    count: table.rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => rowHeight,
+    overscan: OVERSCAN,
+  })
 
   if (isEmpty) {
     return (
@@ -77,17 +113,17 @@ export default function Grid({
   }
 
   const offset = showRowNumbers ? 1 : 0
+  const sizeIdx = sizeColumn ? table.columns.indexOf(sizeColumn) : -1
+  const items = virtualizer.getVirtualItems()
+  const totalH = virtualizer.getTotalSize()
 
   return (
-    <div className="grid-wrap">
-      <table className="grid">
+    <div className="grid-wrap" ref={scrollRef}>
+      <table className="grid grid--virtual">
         <colgroup>
           {showRowNumbers && <col style={{ width: 52 }} />}
           {widths.map((w, i) => (
-            <col
-              key={table.columns[i]}
-              style={w > 0 ? { width: w } : undefined}
-            />
+            <col key={table.columns[i]} style={w > 0 ? { width: w } : undefined} />
           ))}
         </colgroup>
         <thead>
@@ -100,16 +136,31 @@ export default function Grid({
             ))}
           </tr>
         </thead>
-        <tbody>
-          {table.rows.map((row, ri) => {
+        {/*
+          虚拟行: 只渲染可视区附近的行, 用绝对定位落在预留高度上。
+          表格高度撑满 totalSize, 滚动条长度才有意义。
+        */}
+        <tbody style={{ height: totalH, position: 'relative' }}>
+          {items.map((vi) => {
+            const row = table.rows[vi.index]
             const sub = isSubtotal(row)
             const total = isTotal(row, keywordTotal)
-            const bad = mismatchFlags?.[ri] === true
-            const sizeIdx = sizeColumn ? table.columns.indexOf(sizeColumn) : -1
+            const bad = mismatchFlags?.[vi.index] === true
 
             return (
-              <tr key={ri} className={total ? 'is-total' : sub ? 'is-sub' : undefined}>
-                {showRowNumbers && <td className="idx">{ri + 1}</td>}
+              <tr
+                key={vi.key}
+                className={total ? 'is-total' : sub ? 'is-sub' : undefined}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: vi.size,
+                  transform: `translateY(${vi.start}px)`,
+                }}
+              >
+                {showRowNumbers && <td className="idx">{vi.index + 1}</td>}
                 {table.columns.map((c, ci) => {
                   const realIdx = ci - offset
                   const isSize = sizeIdx >= 0 && realIdx === sizeIdx
@@ -120,7 +171,6 @@ export default function Grid({
                     .filter(Boolean)
                     .join(' ')
 
-                  // 尺寸不匹配时补充 title, 说明原因
                   const title =
                     isSize && bad && pnColumn
                       ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
@@ -138,21 +188,5 @@ export default function Grid({
         </tbody>
       </table>
     </div>
-  )
-}
-
-/** 计数类列用等宽表格数字, 便于纵向扫读比较大小 */
-function isNumericColumn(c: string): boolean {
-  return c === 'Slot No' || c === '总计'
-}
-
-/** 标识符类列用等宽 */
-function isMonoColumn(c: string): boolean {
-  return (
-    c === 'Jig ID' ||
-    c === 'P/N' ||
-    c === 'Lot ID' ||
-    c === 'CST ID' ||
-    c === 'Jig 对应型号'
   )
 }

@@ -49,6 +49,22 @@ fn is_force_quit() -> bool {
     should_force_quit()
 }
 
+/// 返回配置目录: `%APPDATA%\JIG Data Finder`
+///
+/// 必须与旧版 Python 版 (config.py get_config_dir) 完全一致, 否则
+/// 新版读不到旧版留下的设置, 用户升级后要重新配置一遍。
+///
+/// 刻意不用 tauri 的 app_config_dir —— 那会按 bundle identifier 命名成
+/// `com.jigdatafinder.app`, 与旧路径不同。
+#[tauri::command]
+fn legacy_config_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法解析应用数据目录: {e}"))?;
+    Ok(dir.join("JIG Data Finder").to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -62,7 +78,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![is_force_quit, set_close_to_tray])
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .invoke_handler(tauri::generate_handler![
+            is_force_quit,
+            set_close_to_tray,
+            legacy_config_dir
+        ])
         .setup(|app| {
             let show_item = MenuItem::with_id(app, MENU_SHOW, "显示主窗口", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, MENU_QUIT, "退出程序", true, None::<&str>)?;
