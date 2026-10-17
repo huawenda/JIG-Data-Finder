@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Row, Table } from '../core/table'
 import { SUMMARY_CST } from '../core/pivot'
@@ -24,6 +24,17 @@ export interface GridProps {
   pinLastColumn?: string
   /** 行高 (px), 需与 CSS --row-h 保持一致 */
   rowHeight?: number
+}
+
+/**
+ * 显示宽度: CJK 字符按 2 个字位算, 其余按 1 个。
+ * 与 CSS 里的等宽字体单位一致 —— 12.5px 的 Cascadia Mono 下, 一个
+ * ASCII 约 7.6px, 一个汉字正好约两倍。
+ */
+function dispWidth(s: string): number {
+  let n = 0
+  for (const ch of s) n += ch.charCodeAt(0) > 255 ? 2 : 1
+  return n
 }
 
 /** 判断一行是否为小计行 (CST ID == "--") */
@@ -70,8 +81,21 @@ const DEFAULT_ROW_H = 30
 const OVERSCAN = 12
 /** 行号列宽 */
 const IDX_COL_W = 52
-/** 未指定宽度的列 (如"对应尺寸") 的兜底宽度 */
-const MIN_COL_W = 96
+/**
+ * 列宽估算: 按内容实际长度算, 每列自适应, 不与窗口宽度绑定。
+ *
+ * 之前有个例外 —— `sizeColumn` (对应尺寸) 被硬编码成 0, 于是落到
+ * MIN_COL_W=96 的兜底值。真实值形如 `65_77/27_77/42_77/48_83/48`
+ * (26 字符), 需要约 220px, 于是这一列无论窗口多宽都只有 96px,
+ * 配合 .grid__td 的 overflow:hidden, 单元格从**左侧**被硬裁掉
+ * (显示成 `77/27_77/42_77/48_83`), 头几个字符直接消失。
+ * 注意 text-overflow:ellipsis 在这里不生效 —— 单元格是 display:flex,
+ * 文本被当作匿名 flex item, 溢出直接被 overflow:hidden 裁掉, 连省略号
+ * 都没有, 看起来像数据本身就这样。
+ */
+const MAX_COL_W = 360
+/** 全量扫描的行数上限: 超过则只扫前 N 行, 避免 10 万行时卡顿 */
+const MEASURE_ROWS = 5000
 
 export default function Grid({
   table,
@@ -85,30 +109,38 @@ export default function Grid({
   pinLastColumn,
   rowHeight = DEFAULT_ROW_H,
 }: GridProps) {
-  // 外层 wrap 负责画边框并提供可用宽度, 内层 scroll 负责滚动。
+  // 外层 wrap 负责画边框, 内层 scroll 负责滚动。
   // 分开是为了避免"滚动条宽度影响可用宽度, 可用宽度又影响列宽"的循环。
-  const wrapRef = useRef<HTMLDivElement>(null)
+  // 注意: 列宽已不再依赖容器宽度, 这里只留 ref 供虚拟滚动的
+  // getScrollElement 使用, 不再需要测量 clientWidth。
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [wrapW, setWrapW] = useState(0)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const isEmpty = table.rows.length === 0
 
-  // 列宽: 采样前 200 行估算, 避免大表全量扫描
+  /*
+   * 列宽: 每列独立按内容实际长度自适应, 与窗口宽度无关。
+   *
+   * 之前的做法是把富余量分给某一列, 等于让列宽跟着窗口变 ——
+   * 窗口一拉宽, 某列就独吞宽度 (末列"对应尺寸"被拉到 470px);
+   * 窗口一收窄, 内容就被 overflow:hidden 从侧面裁掉。现在列宽只由
+   * 内容决定: 表格要么刚好放下, 要么整体横向滚动。
+   */
   const widths = useMemo(() => {
     if (isEmpty) return [] as number[]
-    const sample = table.rows.slice(0, 200)
+    const sample =
+      table.rows.length > MEASURE_ROWS
+        ? table.rows.slice(0, MEASURE_ROWS)
+        : table.rows
     return table.columns.map((col) => {
-      if (col === sizeColumn) return 0
-      let max = [...col].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 2 : 1), 0)
+      // 表头本身也要放得下 (如 "Glass判定" 比任何数据都宽一点)
+      let max = dispWidth(col)
       for (const r of sample) {
-        const w = [...(r[col] ?? '')].reduce(
-          (n, ch) => n + (ch.charCodeAt(0) > 255 ? 2 : 1),
-          0,
-        )
+        const w = dispWidth(r[col] ?? '')
         if (w > max) max = w
       }
-      return Math.min(Math.max(max * 7.6 + 24, 68), 300)
+      return Math.min(Math.max(max * 7.6 + 24, 68), MAX_COL_W)
     })
-  }, [table, sizeColumn, isEmpty])
+  }, [table, isEmpty])
 
   const virtualizer = useVirtualizer({
     count: table.rows.length,
@@ -117,7 +149,6 @@ export default function Grid({
     overscan: OVERSCAN,
   })
 
-  const offset = showRowNumbers ? 1 : 0
   const sizeIdx = sizeColumn ? table.columns.indexOf(sizeColumn) : -1
   const items = virtualizer.getVirtualItems()
   const totalH = virtualizer.getTotalSize()
@@ -131,50 +162,15 @@ export default function Grid({
    * 随列号递增 (实测第 10 列偏了 266px)。
    *
    * 这里给每一列算好确定像素宽, 表头与数据行共用, 不依赖任何表格布局。
+   *
+   * 列宽**不与容器宽度挂钩**: 宽度只由该列最长内容决定。容器比表格窄
+   * 就整体横向滚动, 比表格宽则右侧留白。之前是"把富余量分给某一列",
+   * 那等于让列宽跟着窗口变 —— 窗口一拉宽某列就独吞, 一收窄内容就被
+   * overflow:hidden 从侧面裁掉, 两个现象是同一个设计缺陷的两面。
    */
   const idxW = showRowNumbers ? IDX_COL_W : 0
-  // widths 本身来自 useMemo, 这里只做一次兜底替换, 结果同样缓存,
-  // 否则每次渲染都是新数组, 下游 useMemo 的依赖永远在变。
-  const baseWidths = useMemo(
-    () => widths.map((w) => (w > 0 ? w : MIN_COL_W)),
-    [widths],
-  )
-
-  /*
-   * 容器宽度未知 (首帧还没测量), 且列宽总和小于容器时, 浏览器会把富余
-   * 空间重新分配给各列 —— 各列内容长度不同, 分到的量也不同, 于是又
-   * 出现错位 (实测最大偏 79px, 且随列号递增)。
-   *
-   * 解决办法: 测量滚动容器的实际可用宽度, 由 JS 精确分配富余量。
-   * 表头与所有数据行共用同一份 grid-template-columns, 必然对齐。
-   *
-   * 富余量给谁: 默认给最后一列; 但若指定了 pinLastColumn (汇总列
-   * "总计"), 则分给它前面的列 —— 汇总列必须紧贴右边缘, 数字才好
-   * 纵向扫读对比。之前一律给最后一列, 导致总计列又宽又靠中间,
-   * 视觉上不像是收尾列。
-   *
-   * 注意必须测 .grid-scroll 的 clientWidth, 不能测外层 .grid-wrap:
-   * 横向滚动条出现/消失会改变 scroll 的可用宽度, 而表格宽度是根据
-   * scroll 的可用宽度算的, 用外层测会差出一个滚动条的宽度
-   * (实测 10 万行时差 6px)。
-   */
-
-  useLayoutEffect(() => {
-    const outer = wrapRef.current
-    const inner = scrollRef.current
-    if (!outer || !inner) return
-
-    const measure = () => {
-      // clientWidth 已扣除滚动条, 正是表格可以占用的宽度
-      setWrapW(Math.round(inner.clientWidth))
-    }
-
-    const ro = new ResizeObserver(measure)
-    ro.observe(outer)
-    ro.observe(inner)
-    measure()
-    return () => ro.disconnect()
-  }, [])
+  // widths 已保证每项都 > 0, 这里再兜一层, 保证 colTemplate 合法。
+  const cols = useMemo(() => widths.map((w) => (w > 0 ? w : 68)), [widths])
 
   // 汇总列在 column 索引中的位置 (-1 表示无)
   const pinIdx = useMemo(
@@ -182,32 +178,24 @@ export default function Grid({
     [pinLastColumn, table.columns],
   )
 
-  const resolved = useMemo(() => {
-    const sum = baseWidths.reduce((a, b) => a + b, 0)
-    if (wrapW <= sum) {
-      // 列宽总和本来就超过容器: 不调整, 表格进入横向滚动,
-      // 此时各列严格按给定宽度排布, 本来就对齐。
-      return { cols: baseWidths, sum, idxW }
-    }
-
-    // 富余量分给谁:
-    //  - 有汇总列 -> 分给汇总列之前的那一列, 让汇总列贴右
-    //  - 无汇总列 -> 仍给最后一列 (通用兜底)
-    const target =
-      pinIdx > 0 ? pinIdx - 1 : baseWidths.length - 1
-    const extra = wrapW - sum
-    const cols = baseWidths.map((w, i) => (i === target ? w + extra : w))
-
-    return { cols, sum: wrapW, idxW }
-  }, [baseWidths, wrapW, idxW, pinIdx])
-
   /*
-   * grid-template-columns 的值。表头与所有数据行共用这一份定义,
-   * 所以列边界必然一致 —— 这是修掉错位的关键。
+   * 表格可能比容器窄 (窗口很宽时), 这时右侧会空出一块。空隙必须有个
+   * 归属, 否则浏览器会自动拉伸某些轨道, 又回到"某列独吞"的老问题。
+   *
+   * 归属规则: 一律在末尾追加一条空的弹性轨道 (filler), 富余量全部归它。
+   * 绝不能给任何内容列 —— 否则最后一列 (审查页的"对应尺寸"、透视页的
+   * "总计") 会随窗口拉伸而变宽, 内容居中后两侧留出大片空白。
+   *
+   * 汇总列「总计」曾经是例外 (用 minmax(w,1fr) 吃掉富余量), 结果在
+   * 2043px 窗口下被撑到 479px, 数字孤零零挂在中间。所以现在它和其余
+   * 列一样固定宽, 右缘由 filler 顶到容器边界, "总计"照样紧贴右侧。
+   *
+   * 容器比表格窄时弹性轨道收缩到 0, 表格整体横向滚动, 不影响内容。
    */
   const colTemplate = [
-    ...(showRowNumbers ? [`${resolved.idxW}px`] : []),
-    ...resolved.cols.map((w) => `${w}px`),
+    ...(showRowNumbers ? [`${idxW}px`] : []),
+    ...cols.map((w) => `${w}px`),
+    'minmax(0px, 1fr)',
   ].join(' ')
 
   /*
@@ -250,7 +238,22 @@ export default function Grid({
             {table.columns.map((c, ci) => (
               <div
                 key={c}
-                className={ci === pinIdx ? 'grid__th grid__th--total' : 'grid__th'}
+                className={[
+                  'grid__th',
+                  ci === pinIdx ? 'grid__th--total' : '',
+                  /*
+                   * 表格右缘画一条竖规, 把内容区封闭起来。
+                   *
+                   * .grid 有 min-width:100%, 表格通常正好占满容器, 所以
+                   * 外层 .grid-wrap 的边框就是右缘; 但列宽总和超过容器时
+                   * (横向滚动), 右缘会跑到可视区之外, 内容看起来像没有
+                   * 收尾。这里给最后一列补一条 border-right, 无论滚动与否
+                   * 都有明确的结束边界。
+                   */
+                  ci === table.columns.length - 1 ? 'grid__th--edge' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 role="columnheader"
               >
                 {c}
@@ -289,8 +292,20 @@ export default function Grid({
                     <div className="grid__td grid__td--idx">{vi.index + 1}</div>
                   )}
                   {table.columns.map((c, ci) => {
-                    const realIdx = ci - offset
-                    const isSize = sizeIdx >= 0 && realIdx === sizeIdx
+                    /*
+                     * ci 就是 table.columns 的下标, 与 sizeIdx / pinIdx
+                     * 同处一个坐标空间, 不能减 offset。
+                     *
+                     * 早先这里写了 `const realIdx = ci - offset`, 理由大概是
+                     * 想抵消行号列, 但 table.columns.map 根本不包含行号列,
+                     * 多减一次导致后面每一列的判定都错位一格: 显示行号的表
+                     * (明细/审查页) 里 isSize 永远为 false, 尺寸验证的红字
+                     * 一行都不会出现 —— 而透视页 showRowNumbers=false 时
+                     * offset 恰为 0, 反而正常, 所以只有这两页坏掉, 很容易
+                     * 误判成数据或开关的问题。
+                     */
+                    const isSize = sizeIdx >= 0 && ci === sizeIdx
+                    const isLast = ci === table.columns.length - 1
                     const cls = [
                       isNumericColumn(c) ? 'num' : isMonoColumn(c) ? 'mono' : '',
                       isSize && bad ? 'bad bad-bg' : '',
@@ -300,6 +315,8 @@ export default function Grid({
                        * 一条竖线; 竖规则把它与明细列在视觉上分开。
                        */
                       ci === pinIdx ? 'grid__td--total' : '',
+                      // 末列右缘竖规, 与表头对齐, 封闭表格 (见上方说明)
+                      isLast ? 'grid__td--edge' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')

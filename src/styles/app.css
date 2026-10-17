@@ -360,6 +360,18 @@ textarea {
   border-radius: var(--radius);
   overflow-x: auto;
   scrollbar-width: thin;
+  /*
+   * 必须禁止收缩。
+   *
+   * 本元素是 .main (flex column) 的直接子项, 默认 flex-shrink:1。
+   * 而 overflow-x:auto 让它成为滚动容器, 其自动最小尺寸 (min-height:auto)
+   * 被解析为 0 —— 于是表格一变高, flexbox 就从它身上扣高度: 实测轨道被
+   * 压到 28px (内容需要 55px), 工序名和数量直接被裁掉。
+   *
+   * 纵向本来就不该滚动, 交给 min-content 兜底即可。
+   */
+  flex: 0 0 auto;
+  min-height: min-content;
 }
 
 .stage {
@@ -602,6 +614,21 @@ textarea {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+/*
+ * 末列右缘竖规: 把内容区封闭起来。
+ *
+ * .grid-wrap 本身有边框, 但列宽总和超过容器时表格会横向滚动, 右缘
+ * 滚出可视区, 末列右侧就什么都没有了, 表格看起来没有结束。补一条
+ * border-right 后, 无论是否横向滚动, 最后一行都有明确的收尾线。
+ *
+ * 汇总列 (总计) 已经有一条左侧竖规, 两侧都有线正好把它框成一个
+ * 独立的数字栏, 与明细区彻底分开。
+ */
+.grid__th--edge,
+.grid__td--edge {
+  border-right: 1px solid var(--rule-strong);
 }
 
 /* ---- 唯一允许的彩色: 尺寸不匹配 ---- */
