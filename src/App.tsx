@@ -281,16 +281,31 @@ export default function App() {
   }, [reviewAll])
 
   // ---- 尺寸校验标记 ----
+  //
+  // 开关只管查询结果页, 数据审查页无条件开启。
+  //
+  // 这条分歧来自 Python 版: main_window.py:564 / :610 在装载审查表时
+  // 直接 model_review.set_size_validation_enabled(True), 把用户配置
+  // 强行覆盖掉; 只有 model_detail 是读 checkbox 的 (main_window.py:502)。
+  // 业务上也说得通 —— 审查页存在的意义就是挑出尺寸对不上的治具,
+  // 关掉标红这页就没有内容了。
+  //
+  // 迁移时曾把开关一刀切在两个表上, 于是 size_validation_enabled=false
+  // 的用户打开数据审查页看到的是一片"全部匹配", 与旧版行为不一致,
+  // 很容易被误判成数据或算法有问题。
   const mismatchFlags = useCallback(
     (table: Table): boolean[] => {
-      if (!sizeValidation) return []
       if (!table.columns.includes('对应尺寸')) return []
       return table.rows.map((r) => !validateSizeMatch(r['P/N'] ?? '', r['对应尺寸'] ?? '', rules))
     },
-    [sizeValidation, rules],
+    [rules],
   )
 
-  const detailFlags = useMemo(() => mismatchFlags(detail), [detail, mismatchFlags])
+  const detailFlags = useMemo(
+    () => (sizeValidation ? mismatchFlags(detail) : []),
+    [detail, mismatchFlags, sizeValidation],
+  )
+  // 审查页不过开关
   const reviewFlags = useMemo(() => mismatchFlags(reviewTable), [reviewTable, mismatchFlags])
 
   // ---- 导出 ----
