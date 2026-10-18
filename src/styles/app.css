@@ -706,6 +706,21 @@ textarea {
 
 .select {
   height: 26px;
+  /*
+   * min-width 不是装饰, 是修一个真实的裁字 bug。
+   *
+   * appearance:none 的 select 宽度是 Blink 按 "最长 option 文字 + padding"
+   * 算出来的, 所以文字可用宽度恰好等于文字本身宽度 —— 实测
+   * clientWidth 57 - (padding 8 + 24) = 25px, 而 canvas 量到的
+   * "全部" 也是 25px, 一分余量都没有。Blink 排版时的字形宽度带亚像素,
+   * 于是最后一个字的右侧笔画被裁掉(表现为 "全部" 的 "部" 缺一块)。
+   *
+   * 加 padding 没用: 内在宽度 = 文字 + padding, 改哪个都是刚好齐平。
+   * 必须有一份与内在宽度无关的宽度兜底, 短选项才不会贴边。
+   * 长选项(数据审查页的 P/N 形如 6073J-8348G)超过 min-width 时
+   * 仍然按内容撑开。
+   */
+  min-width: 84px;
   padding: 0 24px 0 8px;
   font: inherit;
   font-size: 12.5px;
