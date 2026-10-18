@@ -16,6 +16,7 @@ import Grid from './ui/Grid'
 import StageRail from './ui/StageRail'
 import SettingsDialog from './ui/SettingsDialog'
 import type { SettingsDraft } from './ui/SettingsDialog'
+import SizeMappingDialog from './ui/SizeMappingDialog'
 import {
   IS_TAURI,
   basename,
@@ -71,6 +72,7 @@ export default function App() {
 
   const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSizeMapping, setShowSizeMapping] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ---- 启动: 读配置 + 同步关闭到托盘开关给宿主层 ----
@@ -390,6 +392,47 @@ export default function App() {
       )
   }
 
+  // ---- 型号尺寸匹配设置 ----
+  /**
+   * 改映射之后必须把已加载的表全部重算一遍。
+   *
+   * 「对应尺寸」列不是查询时现算的, 而是在建表阶段由 query.ts 的
+   * applySizeMapping 填进去的。所以只 setCfg 的话, 界面上的列值会是旧的,
+   * 用户会以为保存没生效 —— 而更糟的是, 导出文件里也是旧值, 拿去做
+   * 尺寸核对会得出错误结论。这里显式重跑各表的构建流程。
+   */
+  const saveSizeMapping = (mapping: Record<string, string>) => {
+    const next = { ...cfg, jigSizeMapping: mapping }
+    setCfg(next)
+    setShowSizeMapping(false)
+    applyConfig(next)
+
+    if (source) {
+      const active = filterActive(source.rows, next)
+      setPivotAll(generatePivot(active, false, next))
+      setPivotProd(generatePivot(active, true, next))
+      setReviewAll(processSourceData(source.rows, next))
+
+      // 查询结果依赖当前输入框里的 ID, 重新跑一遍同样的流程。
+      // 这里不复用 runQuery: 它带状态与日志副作用, 而改映射不是查询动作。
+      const ids = input
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (ids.length > 0) {
+        setDetail(queryData(source.rows, ids, next))
+        const hits = source.rows.filter((r) => ids.includes(r['Jig ID']))
+        setQueryPivot(generatePivot(hits, false, next))
+      }
+    }
+
+    writeConfigFile(next)
+      .then(() =>
+        setToast({ kind: 'ok', text: `已保存 ${Object.keys(mapping).length} 条型号尺寸规则` }),
+      )
+      .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
+  }
+
   const currentPivot = pivotScope === 'all' ? pivotAll : pivotProd
 
   const TABS: { id: TabId; label: string; count: number }[] = [
@@ -426,6 +469,14 @@ export default function App() {
         </button>
         <button className="btn" type="button" onClick={() => setShowSettings(true)}>
           设置
+        </button>
+        <button
+          className="btn"
+          type="button"
+          title="编辑「Jig 对应型号」到「对应尺寸」的映射规则"
+          onClick={() => setShowSizeMapping(true)}
+        >
+          型号尺寸匹配
         </button>
         <input
           ref={fileInputRef}
@@ -655,6 +706,14 @@ export default function App() {
           onSave={saveSettings}
           onClose={() => setShowSettings(false)}
           pickDirectory={pickDirectory}
+        />
+      )}
+
+      {showSizeMapping && (
+        <SizeMappingDialog
+          config={cfg}
+          onSave={saveSizeMapping}
+          onClose={() => setShowSizeMapping(false)}
         />
       )}
     </div>

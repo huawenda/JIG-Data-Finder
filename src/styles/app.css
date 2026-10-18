@@ -223,6 +223,14 @@ textarea {
   font-size: 13.5px;
 }
 
+/* 表格行内的操作按钮: 比常规按钮矮一档, 免得每行都抢视线 */
+.btn--sm {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
 /* ============ 左侧输入区 ============ */
 
 .side {
@@ -898,6 +906,159 @@ textarea {
   padding: 14px 22px;
   background: var(--board);
   border-top: 1px solid var(--rule);
+}
+
+/* ============ 型号尺寸匹配面板 ============ */
+
+/*
+ * 比普通对话框宽, 因为型号与尺寸是两组并排的短标识, 挤在 660px 里
+ * 尺寸串(最长 '77/27_77/42_77/48_83/48')会折行, 反而更难核对。
+ */
+.dialog--wide {
+  width: min(760px, 100%);
+}
+
+.dialog__note code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 1px 4px;
+  background: var(--band);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * 表头与每一行共用同一套列宽, 靠 grid 而非 table:
+ * 行里有输入框和错误提示, grid 换行比 table 的 rowspan 干净。
+ */
+.map {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.map__head,
+.map__row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.map__head {
+  height: 28px;
+  background: var(--board);
+  border-bottom: 1px solid var(--rule);
+}
+
+.map__col {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+}
+
+.map__body {
+  max-height: min(46vh, 420px);
+  overflow: auto;
+}
+
+.map__row {
+  min-height: 34px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.map__row:last-child {
+  border-bottom: 0;
+}
+
+/* 隔行淡底, 十几行时横向扫读不串行 */
+.map__row:nth-child(even) {
+  background: var(--band);
+}
+
+.map__row:focus-within {
+  background: var(--accent-soft);
+}
+
+.map__input {
+  height: 26px;
+  min-width: 0;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.map__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* 错误行整行提示, 但只有输入框本身转红 —— 信号色留给真正的问题 */
+.map__input[data-invalid='true'] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.map__err {
+  grid-column: 1 / -1;
+  padding: 0 0 3px;
+  font-size: 11px;
+  color: var(--signal);
+}
+
+/*
+ * 每一行都摆一个红色"删除"会变成一片红, 抢掉真正的信号色。
+ * 默认用中性墨色, 悬停才转红 —— 破坏性操作不该在静止状态里喊叫。
+ */
+.map__row .btn--danger {
+  color: var(--ink-3);
+}
+
+.map__row .btn--danger:hover:not(:disabled) {
+  color: var(--signal);
+}
+
+.map__empty {
+  margin: 0;
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.map__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.map__spacer {
+  flex: 1;
+}
+
+.map__count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.map__count[data-bad='true'] {
+  color: var(--signal);
+}
+
+.map__note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--signal);
 }
 
 /* ============ 提示条 ============ */
