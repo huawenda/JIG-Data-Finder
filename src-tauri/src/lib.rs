@@ -17,11 +17,21 @@ use tauri::{
 const MENU_SHOW: &str = "show";
 const MENU_QUIT: &str = "quit";
 
+/// 托盘图标 ID, 供 set_tray_enabled 查找
+const TRAY_ID: &str = "main-tray";
+
 /// 记录窗口是否已被用户显式关闭 (点"退出程序"才真正退出)
 static FORCE_QUIT: Mutex<bool> = Mutex::new(false);
 
 /// 关闭窗口时是否隐藏到托盘, 由前端启动时同步
 static CLOSE_TO_TRAY: Mutex<bool> = Mutex::new(true);
+
+/// 是否显示系统托盘图标, 由前端启动和保存设置时同步
+///
+/// 托盘图标必须在 setup 阶段就建好 (那时前端还没跑, 读不到配置),
+/// 所以这里用"先建后显隐"而不是"按需创建": 前端拿到配置后调
+/// set_tray_enabled 把它 show/hide。
+static TRAY_ENABLED: Mutex<bool> = Mutex::new(true);
 
 fn set_force_quit(value: bool) {
     if let Ok(mut flag) = FORCE_QUIT.lock() {
@@ -37,11 +47,31 @@ fn close_to_tray() -> bool {
     CLOSE_TO_TRAY.lock().map(|f| *f).unwrap_or(true)
 }
 
+fn tray_enabled() -> bool {
+    TRAY_ENABLED.lock().map(|f| *f).unwrap_or(true)
+}
+
 /// 前端在启动和保存设置时调用, 同步"关闭到托盘"开关
 #[tauri::command]
 fn set_close_to_tray(enabled: bool) {
     if let Ok(mut flag) = CLOSE_TO_TRAY.lock() {
         *flag = enabled;
+    }
+}
+
+/// 前端在启动和保存设置时调用, 同步"显示托盘图标"开关
+///
+/// 关掉时图标真的从系统托盘消失 (不是只隐藏菜单), 与旧版
+/// `if config.tray_enabled and QSystemTrayIcon.isSystemTrayAvailable()`
+/// 的语义一致 —— 托盘不可用时也不注册图标。
+#[tauri::command]
+fn set_tray_enabled(app: tauri::AppHandle, enabled: bool) {
+    if let Ok(mut flag) = TRAY_ENABLED.lock() {
+        *flag = enabled;
+    }
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        // 失败不致命: 只是图标状态没对上, 下次启动会重来
+        let _ = tray.set_visible(enabled);
     }
 }
 
@@ -93,6 +123,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             is_force_quit,
             set_close_to_tray,
+            set_tray_enabled,
             legacy_config_dir
         ])
         .setup(|app| {
@@ -100,7 +131,7 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, MENU_QUIT, "退出程序", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &PredefinedMenuItem::separator(app)?, &quit_item])?;
 
-            TrayIconBuilder::with_id("main-tray")
+            TrayIconBuilder::with_id(TRAY_ID)
                 .icon(app.default_window_icon().cloned().unwrap())
                 .tooltip("JIG Data Finder - 数据查询助手")
                 .menu(&menu)
@@ -159,10 +190,25 @@ pub fn run() {
                 // 用户点右上角关闭: 若配置启用了关闭到托盘, 隐藏窗口继续运行。
                 // 配置由前端在启动时通过 set_close_to_tray 同步过来,
                 // 避免宿主层去解析 %APPDATA% 下的 JSON。
-                if close_to_tray() {
+                //
+                // 两个开关必须一起看: 托盘图标是唯一的"把窗口找回来"的
+                // 入口, 若它被关掉而这里仍隐藏窗口, 用户点了关闭就再也
+                // 打不回来 (只能杀进程)。所以任一为关, 关闭窗口就等于
+                // 退出程序 —— 此时不能 prevent_close, 否则窗口关不掉。
+                if close_to_tray() && tray_enabled() {
                     let _ = window.hide();
+                    api.prevent_close();
+                } else {
+                    set_force_quit(true);
+                    /*
+                     * 必须显式 exit(0): 只把窗口关掉是不够的。
+                     * 托盘图标注册后 Tauri 的事件循环不会因为"最后一个
+                     * 窗口消失"而退出 (托盘本身就是常驻对象), 进程会
+                     * 留在后台 —— 窗口没了、图标也可能没有, 用户既看不见
+                     * 也找不回来, 只能去任务管理器杀。
+                     */
+                    window.app_handle().exit(0);
                 }
-                api.prevent_close();
             }
         })
         .run(tauri::generate_context!())

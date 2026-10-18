@@ -9,6 +9,7 @@ export interface SettingsDraft {
   clipboardAutoProcessEnabled: boolean
   sizeValidationEnabled: boolean
   closeToTray: boolean
+  trayEnabled: boolean
   exportTimestampEnabled: boolean
 }
 
@@ -158,14 +159,43 @@ export default function SettingsDialog({
             </div>
 
             <div className="field">
+              <span className="field__label">系统托盘</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={d.trayEnabled}
+                  onChange={(e) =>
+                    patch({
+                      trayEnabled: e.target.checked,
+                      /*
+                       * 托盘图标是关闭后把窗口找回来的唯一入口。
+                       * 关掉它就必须同时关掉"关闭到托盘", 否则用户点关闭
+                       * 窗口会隐藏起来, 而系统托盘里什么都没有 —— 程序
+                       * 变成打不开的僵尸, 只能去任务管理器杀。
+                       *
+                       * 反过来 (开启托盘) 不必动 closeToTray, 由用户自己
+                       * 决定关窗口是退出还是藏起来。
+                       */
+                      closeToTray: e.target.checked ? d.closeToTray : false,
+                    })
+                  }
+                />
+                在系统托盘显示图标
+              </label>
+            </div>
+
+            <div className="field">
               <span className="field__label">关闭按钮</span>
               <label className="switch">
                 <input
                   type="checkbox"
                   checked={d.closeToTray}
+                  disabled={!d.trayEnabled}
                   onChange={(e) => patch({ closeToTray: e.target.checked })}
                 />
-                最小化到系统托盘,不退出
+                {d.trayEnabled
+                  ? '最小化到系统托盘,不退出'
+                  : '关闭即退出程序(托盘图标已关闭)'}
               </label>
             </div>
           </fieldset>

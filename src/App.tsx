@@ -113,7 +113,13 @@ export default function App() {
   useEffect(() => {
     if (!IS_TAURI) return
     invoke('set_close_to_tray', { enabled: cfg.closeToTray }).catch(() => {})
-  }, [cfg.closeToTray])
+    /*
+     * 托盘图标开关同理。必须和 closeToTray 一起同步, 而不是各发一次
+     * useEffect —— 两个开关在宿主层是"与"关系 (托盘关了还隐藏窗口
+     * 会让程序无法找回), 分开发可能撞上中间态。
+     */
+    invoke('set_tray_enabled', { enabled: cfg.trayEnabled }).catch(() => {})
+  }, [cfg.closeToTray, cfg.trayEnabled])
 
   // ---- 提示条自动消失 ----
   useEffect(() => {
@@ -349,6 +355,7 @@ export default function App() {
     clipboardAutoProcessEnabled: c.clipboardAutoProcessEnabled,
     sizeValidationEnabled: c.sizeValidationEnabled,
     closeToTray: c.closeToTray,
+    trayEnabled: c.trayEnabled,
     exportTimestampEnabled: c.exportTimestampEnabled,
   })
 
