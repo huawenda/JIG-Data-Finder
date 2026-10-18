@@ -60,7 +60,53 @@ describe('test-500.xlsx', () => {
   })
 
   it('包含多个不同的 P/N', () => {
-    expect(new Set(rows.map((r) => r['P/N'])).size).toBeGreaterThanOrEqual(10)
+    expect(new Set(rows.map((r) => r['P/N'])).size).toBe(16)
+  })
+
+  // -----------------------------------------------------------------------
+  // P/N 命名规则与型号白名单
+  //
+  // 这两条不是"重复生成脚本的 assert", 而是把规则钉在测试侧: 将来有人
+  // 往 gen-test-xlsx.py 里加一个不符合真实编码规则的 P/N, 或随手填一个
+  // 不在 jigSizeMapping 里的型号, 这里会先炸出来。
+  //
+  // 型号白名单尤其要独立校验 —— 型号查不到映射时对应尺寸是空串, 而
+  // validateSizeMatch 规则 2 把空值判成"匹配", 于是未登记的型号会静默地
+  // 变成"永远不标红", 标红回归直接失去意义。
+  // -----------------------------------------------------------------------
+  const PN_PREFIXES = ['6072J', '6073J']
+  const PN_DIGITS = ['6555', '7748', '8348', '7727', '7742', '3931']
+  const PN_SUFFIXES = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'K']
+  const PN_RE = new RegExp(
+    `^(?:${PN_PREFIXES.join('|')})-(?:${PN_DIGITS.join('|')})[${PN_SUFFIXES.join('')}]$`,
+  )
+
+  it('每个 P/N 都符合真实编码规则 <前缀>-<4位白名单><单字母后缀>', () => {
+    const pns = [...new Set(rows.map((r) => String(r['P/N'])))]
+    for (const pn of pns) {
+      expect(PN_RE.test(pn), `P/N ${pn} 不符合编码规则`).toBe(true)
+    }
+    // 三段白名单都要被用到, 否则白名单本身写错了也发现不了
+    for (const digits of PN_DIGITS) {
+      expect(
+        pns.some((pn) => pn.includes(`-${digits}`)),
+        `4 位数字 ${digits} 未被覆盖`,
+      ).toBe(true)
+    }
+    for (const prefix of PN_PREFIXES) {
+      expect(pns.some((pn) => pn.startsWith(prefix)), `前缀 ${prefix} 未被覆盖`).toBe(true)
+    }
+  })
+
+  it('型号全部来自 jigSizeMapping, 不出现规则之外的型号', () => {
+    for (const r of rows) {
+      // 源数据格式是 "型号 空格 型号", 取第一个词
+      const model = String(r['Jig 对应型号']).split(' ')[0]
+      expect(
+        Object.prototype.hasOwnProperty.call(cfg.jigSizeMapping, model),
+        `型号 ${model} 不在 jigSizeMapping 里`,
+      ).toBe(true)
+    }
   })
 
   it('尺寸标红行为与 gen-test-xlsx.py 的声明逐个吻合', () => {
@@ -70,10 +116,13 @@ describe('test-500.xlsx', () => {
       modelByPn.set(String(r['P/N']), String(r['Jig 对应型号']).split(' ')[0])
     }
 
-    // 契约: 这 5 个 P/N 应当标红, 其余不标红。数值与
+    // 契约: 这 9 个 P/N 应当标红, 其余 7 个不标红。数值与
     // tools/gen-test-xlsx.py 的 PN_MODELS 第三个字段一一对应。
+    //
+    // 注意这里仍然直接调用 validateSizeMatch, 不复刻规则。
     const expectRed = new Set([
-      '6073J-5084G', '6073J-2520G', '6073J-4307G', '6075K-5099G', '6075K-5021G',
+      '6073J-7748B', '6072J-7727C', '6073J-7742D', '6072J-8348E',
+      '6073J-3931F', '6072J-7748G', '6073J-6555B', '6072J-6555D', '6073J-6555G',
     ])
 
     for (const [pn, model] of modelByPn) {
@@ -83,6 +132,7 @@ describe('test-500.xlsx', () => {
         expectRed.has(pn) ? 'red' : 'clear',
       )
     }
+    expect(expectRed.size).toBe(9)
   })
 
   it('多种尺寸映射都被覆盖 —— 不能只有一种', () => {
@@ -90,8 +140,9 @@ describe('test-500.xlsx', () => {
       (r) => cfg.jigSizeMapping[String(r['Jig 对应型号']).split(' ')[0]] ?? '',
     )
     expect(sizes.some((s) => s === cfg.allSizeValue)).toBe(true)
-    expect(sizes.some((s) => s === '')).toBe(true)
-    expect(new Set(sizes).size).toBeGreaterThanOrEqual(5)
+    // 型号全部合法, 所以不可能再出现空串 —— 这条从"必须有"翻成"不能有"
+    expect(sizes.some((s) => s === '')).toBe(false)
+    expect(new Set(sizes).size).toBeGreaterThanOrEqual(4)
   })
 
   it('多数 Jig ID 能被剪贴板正则提取出来', () => {
