@@ -709,18 +709,19 @@ textarea {
   /*
    * min-width 不是装饰, 是修一个真实的裁字 bug。
    *
-   * appearance:none 的 select 宽度是 Blink 按 "最长 option 文字 + padding"
-   * 算出来的, 所以文字可用宽度恰好等于文字本身宽度 —— 实测
-   * clientWidth 57 - (padding 8 + 24) = 25px, 而 canvas 量到的
-   * "全部" 也是 25px, 一分余量都没有。Blink 排版时的字形宽度带亚像素,
-   * 于是最后一个字的右侧笔画被裁掉(表现为 "全部" 的 "部" 缺一块)。
+   * appearance:none 的 select, Blink 把内在宽度算成
+   * "最长 option 文字 + padding + 边框", 于是文字可用宽度**恒等于**
+   * 文字本身宽度 —— 余量永远是 0。字形排版带亚像素, 最后那个字
+   * 的右侧笔画就会被裁掉(表现为"全部"的"部"缺一块)。
    *
-   * 加 padding 没用: 内在宽度 = 文字 + padding, 改哪个都是刚好齐平。
-   * 必须有一份与内在宽度无关的宽度兜底, 短选项才不会贴边。
-   * 长选项(数据审查页的 P/N 形如 6073J-8348G)超过 min-width 时
-   * 仍然按内容撑开。
+   * 加 padding 无效: 内在宽度就是文字 + padding, 改哪个都刚好齐平。
+   * 只能给一份与内在宽度无关的 min-width 兜底。
+   *
+   * 但 min-width 必须按各处的最长选项分别给足 —— 统一给一个值必然
+   * 顾此失彼(实测 84px 时: "全部" 余量 23px 够了, 而"全部数据"
+   * 50px 文字只分到 48px, 余量 -2px 照旧被裁)。
    */
-  min-width: 84px;
+  min-width: 96px;
   padding: 0 24px 0 8px;
   font: inherit;
   font-size: 12.5px;
@@ -736,6 +737,15 @@ textarea {
 
 .select:hover {
   border-color: var(--ink-3);
+}
+
+/*
+   * 审查页的 P/N 选项是形如 6073J-8348G 的型号, 最长 12 个字符
+   * (测量约 72.6px), 比 .select 的 min-width 还宽一点。这里按内容
+   * 撑开后余量又回到 0, 所以再单独给它一份兜底。
+   */
+.select--pn {
+  min-width: 124px;
 }
 
 /* 开关: 尺寸验证 */

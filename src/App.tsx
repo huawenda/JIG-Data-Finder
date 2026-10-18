@@ -595,7 +595,7 @@ export default function App() {
             <div className="toolbar">
               <span className="toolbar__label">P/N</span>
               <select
-                className="select"
+                className="select select--pn"
                 value={pnFilter}
                 onChange={(e) => setPnFilter(e.target.value)}
               >
