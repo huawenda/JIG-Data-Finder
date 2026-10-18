@@ -15,7 +15,8 @@ import { createDefaultConfig } from '../core/config'
 import type { AppConfig } from '../core/config'
 import {
   blankPair,
-  mappingToPairs,
+  movePair,
+  orderedPairs,
   pairsToMapping,
   validateMappingPairs,
 } from '../core/mapping'
@@ -23,7 +24,11 @@ import type { MappingPair } from '../core/mapping'
 
 export interface SizeMappingDialogProps {
   config: AppConfig
-  onSave: (mapping: Record<string, string>) => void
+  /**
+   * 同时回传排列顺序。见 jigSizeMappingOrder 的注释: 映射表是
+   * Record<string,string>, 存不下用户排的顺序, 顺序必须单列一份传回来。
+   */
+  onSave: (mapping: Record<string, string>, order: string[]) => void
   onClose: () => void
 }
 
@@ -32,7 +37,9 @@ export default function SizeMappingDialog({
   onSave,
   onClose,
 }: SizeMappingDialogProps) {
-  const [pairs, setPairs] = useState<MappingPair[]>(() => mappingToPairs(config.jigSizeMapping))
+  const [pairs, setPairs] = useState<MappingPair[]>(() =>
+    orderedPairs(config.jigSizeMapping, config.jigSizeMappingOrder),
+  )
 
   const errors = useMemo(() => validateMappingPairs(pairs), [pairs])
   const errorCount = Object.keys(errors).length
@@ -57,6 +64,29 @@ export default function SizeMappingDialog({
 
   const remove = (i: number) => setPairs((prev) => prev.filter((_, idx) => idx !== i))
 
+  const move = (from: number, to: number) => setPairs((prev) => movePair(prev, from, to))
+
+  /*
+   * 拖拽排序。
+   *
+   * 用原生 HTML5 拖放而不是 react-dnd 之类的库: 这里只需要"上下换位"
+   * 一种手势, 而拖放真正的难点从来不是位移计算, 是拖拽过程中的视觉
+   * 反馈 —— 原生 dragstart 能拿到浏览器内置的拖影, 不必自己画。
+   *
+   * dragIndex 用 ref 而不是 state: 它只在 dragover 里读, 一旦存进 state
+   * 每经过一行就会触发一次重渲, 十几行的表会明显发涩。
+   */
+  const dragIndex = useRef<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
+  const onDrop = (to: number) => {
+    const from = dragIndex.current
+    dragIndex.current = null
+    setDragOver(null)
+    if (from === null || from === to) return
+    move(from, to)
+  }
+
   /*
    * 「恢复默认」恢复的是**内置默认映射**, 不是当前配置里的那份。
    *
@@ -66,7 +96,10 @@ export default function SizeMappingDialog({
    * 这个按钮等于白给。默认表是代码里的 createDefaultConfig(), 不会
    * 被用户配置污染。
    */
-  const restore = () => setPairs(mappingToPairs(createDefaultConfig().jigSizeMapping))
+  const restore = () => {
+    const d = createDefaultConfig()
+    setPairs(orderedPairs(d.jigSizeMapping, d.jigSizeMappingOrder))
+  }
 
   return (
     <div
@@ -89,12 +122,15 @@ export default function SizeMappingDialog({
           <p className="dialog__note">
             左侧型号取自 Excel 的「Jig 对应型号」列第一个词, 右侧是它对应的尺寸串。
             尺寸串为 <code>All Size</code> 时恒判为匹配(不标红); 留空表示该型号不做尺寸校验。
+            拖动行首的 ⠿ 可调整顺序, 也可用行内的 ↑↓, 顺序会按此保存。
           </p>
 
           <div className="map">
             <div className="map__head">
+              <span className="map__col map__col--grip" />
               <span className="map__col">型号</span>
               <span className="map__col map__col--size">对应尺寸</span>
+              <span className="map__col map__col--move">顺序</span>
               <span className="map__col map__col--act" />
             </div>
 
@@ -104,12 +140,45 @@ export default function SizeMappingDialog({
               ) : (
                 pairs.map((p, i) => (
                   <div
-                  className="map__row"
-                  key={i}
-                  ref={(el) => {
-                    rowRefs.current[i] = el
-                  }}
-                >
+                    className="map__row"
+                    key={i}
+                    ref={(el) => {
+                      rowRefs.current[i] = el
+                    }}
+                    data-over={dragOver === i ? 'true' : undefined}
+                    onDragOver={(e) => {
+                      // 必须 preventDefault, 否则 drop 根本不触发。
+                      // dropEffect 用 'move' 才显示移动光标而非禁止符号。
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOver !== i) setDragOver(i)
+                    }}
+                    onDragLeave={() => {
+                      if (dragOver === i) setDragOver(null)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      onDrop(i)
+                    }}
+                  >
+                    <button
+                      className="map__grip"
+                      type="button"
+                      aria-label={`拖动第 ${i + 1} 行调整顺序`}
+                      draggable
+                      onDragStart={(e) => {
+                        dragIndex.current = i
+                        e.dataTransfer.effectAllowed = 'move'
+                        // Firefox 不设置数据就不会触发 dragover
+                        e.dataTransfer.setData('text/plain', String(i))
+                      }}
+                      onDragEnd={() => {
+                        dragIndex.current = null
+                        setDragOver(null)
+                      }}
+                    >
+                      ⠿
+                    </button>
                     <input
                       className="map__input"
                       value={p.model}
@@ -125,6 +194,26 @@ export default function SizeMappingDialog({
                       placeholder="All Size"
                       onChange={(e) => patch(i, { size: e.target.value })}
                     />
+                    <span className="map__move">
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        type="button"
+                        aria-label={`第 ${i + 1} 行上移`}
+                        disabled={i === 0}
+                        onClick={() => move(i, i - 1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        type="button"
+                        aria-label={`第 ${i + 1} 行下移`}
+                        disabled={i === pairs.length - 1}
+                        onClick={() => move(i, i + 1)}
+                      >
+                        ↓
+                      </button>
+                    </span>
                     <button
                       className="btn btn--danger btn--sm"
                       type="button"
@@ -166,7 +255,7 @@ export default function SizeMappingDialog({
             className="btn btn--primary"
             type="button"
             disabled={errorCount > 0}
-            onClick={() => onSave(pairsToMapping(pairs))}
+            onClick={() => onSave(pairsToMapping(pairs), pairs.map((p) => p.model))}
           >
             保存
           </button>

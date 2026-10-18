@@ -24,6 +24,26 @@ export function mappingToPairs(mapping: Record<string, string>): MappingPair[] {
   return Object.entries(mapping).map(([model, size]) => ({ model, size }))
 }
 
+/**
+ * 同上, 但按 order 指定的顺序还原。
+ *
+ * 这是面板读配置的入口。之所以不能直接用 mappingToPairs: 绝大多数型号是
+ * 纯数字 ('184' '252' '508'), 而 JS 对象会把数组索引样式的键按数值升序
+ * 排在字符串键之前 —— 面板里用户排好的 '252' 在前, 存进 Record 之后再读
+ * 出来必然变成 '184' 打头、纯数字全部升序。顺序必须单独存一份。
+ *
+ * order 里缺失的型号 (旧配置 / 用户后加的) 追加到末尾, 不丢规则。
+ */
+export function orderedPairs(
+  mapping: Record<string, string>,
+  order: ReadonlyArray<string>,
+): MappingPair[] {
+  const rest = Object.keys(mapping).filter((m) => !order.includes(m))
+  return [...order, ...rest]
+    .filter((m) => m in mapping)
+    .map((model) => ({ model, size: mapping[model] }))
+}
+
 /** 行数组 -> 配置对象。逐行 trim, 保持键的大小写原样。 */
 export function pairsToMapping(pairs: ReadonlyArray<MappingPair>): Record<string, string> {
   const out: Record<string, string> = {}
@@ -67,4 +87,27 @@ export function validateMappingPairs(pairs: ReadonlyArray<MappingPair>): Mapping
 /** 面板里新增一行时用的空行 */
 export function blankPair(): MappingPair {
   return { model: '', size: '' }
+}
+
+/**
+ * 把第 from 行挪到第 to 行, 返回新数组。
+ *
+ * 要点: 越界时**返回原数组**而不是副本。面板里上下移动的行首尾按钮
+ * 在端点处必然要点得到, 若每次都生成新数组, useMemo 的依赖每点一次就
+ * 变一次, 整张表会跟着重渲 —— 而视觉上什么都没有发生。
+ */
+export function movePair(
+  pairs: ReadonlyArray<MappingPair>,
+  from: number,
+  to: number,
+): MappingPair[] {
+  if (from === to) return pairs as MappingPair[]
+  if (from < 0 || to < 0 || from >= pairs.length || to >= pairs.length) {
+    return pairs as MappingPair[]
+  }
+
+  const next = [...pairs]
+  const [row] = next.splice(from, 1)
+  next.splice(to, 0, row)
+  return next
 }

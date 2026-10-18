@@ -401,8 +401,8 @@ export default function App() {
    * 用户会以为保存没生效 —— 而更糟的是, 导出文件里也是旧值, 拿去做
    * 尺寸核对会得出错误结论。这里显式重跑各表的构建流程。
    */
-  const saveSizeMapping = (mapping: Record<string, string>) => {
-    const next = { ...cfg, jigSizeMapping: mapping }
+  const saveSizeMapping = (mapping: Record<string, string>, order: string[]) => {
+    const next = { ...cfg, jigSizeMapping: mapping, jigSizeMappingOrder: order }
     setCfg(next)
     setShowSizeMapping(false)
     applyConfig(next)

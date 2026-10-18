@@ -47,6 +47,17 @@ export interface AppConfig {
   /** JIG 型号 -> 尺寸映射 */
   jigSizeMapping: Record<string, string>
 
+  /**
+   * 映射表的面板排列顺序 (型号列表)。
+   *
+   * 为什么要单列一个字段: jigSizeMapping 是 Record<string, string>, 而
+   * JS 对象对「数组索引样式的键」是按数值升序排在所有字符串键之前的 ——
+   * 也就是说无论怎么插入, '184' '252' '262' 这些纯数字型号永远排在
+   * '420A' '502N' 前面且升序。面板里调整的顺序存不进去, 重开就没了。
+   * 所以顺序单独存一份, 面板与配置互为对方的前置。
+   */
+  jigSizeMappingOrder: string[]
+
   /** JIG 状态配置 */
   jigStatusColumn: string
   jigStatusActiveValue: string
@@ -150,6 +161,27 @@ export function createDefaultConfig(): AppConfig {
       '262': 'All Size',
     },
 
+    // 与上面的 jigSizeMapping 一一对应。纯数字型号排在前面是 JS 对象的
+    // 固有行为, 恰好与这里手写的顺序一致, 面板初次打开不会跳位。
+    jigSizeMappingOrder: [
+      '184',
+      '420A',
+      '420B',
+      '477',
+      '502',
+      '502A',
+      '430',
+      '502N',
+      '508',
+      '509',
+      '508N',
+      '509N',
+      '252',
+      '252A',
+      '256',
+      '262',
+    ],
+
     jigStatusColumn: 'Jig状态',
     jigStatusActiveValue: 'INPRODUCTION',
 
@@ -201,6 +233,31 @@ export function mergeConfig(
     if (typeof base[key] !== typeof v) continue
     ;(base as unknown as Record<string, unknown>)[key] = v
   }
+
+  /*
+   * 排列顺序要对齐映射表的实际内容, 否则面板打开就是空的或多出幽灵行:
+   *   - 映射里有、顺序里没有的型号 -> 追加到末尾 (旧配置没这个字段);
+   *   - 顺序里有、映射里没有的型号 -> 丢弃 (用户删过规则);
+   *   - 重复的顺序项 -> 只留第一次。
+   * 不做这一步的话, 面板与磁盘配置会互相矛盾, 而且要等用户改配置
+   * 才暴露出来。
+   */
+  const seen = new Set<string>()
+  const order: string[] = []
+  for (const m of base.jigSizeMappingOrder) {
+    if (m in base.jigSizeMapping && !seen.has(m)) {
+      order.push(m)
+      seen.add(m)
+    }
+  }
+  for (const m of Object.keys(base.jigSizeMapping)) {
+    if (!seen.has(m)) {
+      order.push(m)
+      seen.add(m)
+    }
+  }
+  base.jigSizeMappingOrder = order
+
   return base
 }
 
