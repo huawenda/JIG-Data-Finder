@@ -20,6 +20,7 @@
         "resizable": true,
         "center": true,
         "decorations": true,
+        "dragDropEnabled": false,
         "theme": "Light"
       }
     ],
