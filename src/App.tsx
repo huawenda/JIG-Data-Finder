@@ -30,6 +30,7 @@ import {
   writeConfigFile,
   withTimestamp,
 } from './ui/bridge'
+import type { PickedFile } from './ui/bridge'
 
 import './styles/app.css'
 
@@ -49,6 +50,16 @@ export default function App() {
 
   const [source, setSource] = useState<{ columns: string[]; rows: Row[] } | null>(null)
   const [sourcePath, setSourcePath] = useState('')
+  // 浏览只负责"记住选中的文件", 不读盘。「浏览」与「加载」是两个动作:
+  //   浏览 -> 只设 sourcePath, 由用户自己决定何时加载
+  //   加载 -> 每次点击都重新读盘, 所以源文件被外部改动后再次点即可刷新
+  const [pendingFile, setPendingFile] = useState<PickedFile | null>(null)
+  // 浏览器回退(<input type=file>)时文件只能当场读成 ArrayBuffer,
+  // 没法留路径给"加载"再读一次。这种情况下直接把 buffer 暂存起来。
+  const [pendingBuffer, setPendingBuffer] = useState<{
+    buf: ArrayBuffer
+    name: string
+  } | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [log, setLog] = useState('等待加载源数据')
   const [toast, setToast] = useState<Toast | null>(null)
@@ -172,23 +183,53 @@ export default function App() {
     [cfg],
   )
 
+  /**
+   * 只选定文件, 不读盘。
+   *
+   * 期望的行为是「浏览」和「加载」解耦: 选完先别急着把几百 MB 的
+   * Excel 读进来, 用户可以先确认路径再决定加载。
+   */
   const browse = useCallback(async () => {
     const picked = await pickExcelFile(cfg.defaultFileDialogPath)
     if (picked) {
-      setStatus('busy')
-      setLog(`正在读取 ${picked.name} …`)
-      try {
-        const buf = await readPickedFile(picked.path)
-        await loadFromBuffer(buf, picked.name, picked.path)
-      } catch (e) {
-        setStatus('error')
-        setLog('打开失败')
-        setToast({ kind: 'error', text: `打开失败:${errText(e)}` })
-      }
+      setPendingFile(picked)
+      setPendingBuffer(null)
+      setSourcePath(picked.path)
+      // 只提示已选定, 不动 status —— 这里还什么都没加载。
+      setLog(`已选择 ${picked.name}, 点「加载」读取`)
+      setToast({ kind: 'info', text: `已选择 ${picked.name}, 点「加载」读取` })
     } else if (!IS_TAURI) {
       fileInputRef.current?.click()
     }
-  }, [cfg.defaultFileDialogPath, loadFromBuffer])
+  }, [cfg.defaultFileDialogPath])
+
+  /**
+   * 读取并加载当前选定的文件。每次点击都重新读盘,
+   * 所以外部改动了源文件后再点一次「加载」就能拿到最新内容。
+   */
+  const load = useCallback(async () => {
+    if (pendingBuffer) {
+      // 浏览器回退路径: buffer 已经在选择时读好了
+      const { buf, name } = pendingBuffer
+      await loadFromBuffer(buf, name, name)
+      return
+    }
+    const file = pendingFile
+    if (!file) {
+      setToast({ kind: 'error', text: '请先用「浏览」选择文件' })
+      return
+    }
+    setStatus('busy')
+    setLog(`正在读取 ${file.name} …`)
+    try {
+      const buf = await readPickedFile(file.path)
+      await loadFromBuffer(buf, file.name, file.path)
+    } catch (e) {
+      setStatus('error')
+      setLog('加载失败')
+      setToast({ kind: 'error', text: `读取失败:${errText(e)}` })
+    }
+  }, [pendingFile, pendingBuffer, loadFromBuffer])
 
   // ---- 查询 ----
   const runQuery = useCallback(() => {
@@ -462,8 +503,9 @@ export default function App() {
         <button
           className="btn btn--primary"
           type="button"
-          disabled={status === 'busy' || !sourcePath}
-          onClick={browse}
+          disabled={status === 'busy' || (!pendingFile && !pendingBuffer)}
+          onClick={load}
+          title="重新读取当前选定的文件"
         >
           加载
         </button>
@@ -486,7 +528,13 @@ export default function App() {
           onChange={async (e) => {
             const f = e.target.files?.[0]
             if (!f) return
-            await loadFromBuffer(await f.arrayBuffer(), f.name, f.name)
+            // 浏览器回退: 路径拿不到, 只能当场读 buffer 暂存,
+            // 「加载」按钮随后直接用它。
+            const buf = await f.arrayBuffer()
+            setPendingBuffer({ buf, name: f.name })
+            setPendingFile(null)
+            setSourcePath(f.name)
+            setLog(`已选择 ${f.name}, 点「加载」读取`)
             e.target.value = ''
           }}
         />
