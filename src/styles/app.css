@@ -544,10 +544,21 @@ textarea {
   border-bottom: 1px solid var(--rule);
 }
 
-/* 数字与标识符: 等宽表格数字, 纵向可扫读 */
+/*
+ * 表格内文字统一用 UI 字体。
+ *
+ * 曾经给 P/N、Jig ID、CST ID 等标识符列单独上过 Cascadia Mono,
+ * 想让相同位数的编码左右边界齐平、便于纵向扫读比对。但实际观感
+ * 反而割裂: 编码类列与非编码类列 (工程名、对应尺寸) 字体不同,
+ * 整张表像拼了两块, 用户反馈"列之间长得不一样"。
+ *
+ * 扫读需求改由 font-variant-numeric: tabular-nums 承担 ——
+ * 它只让数字等宽, 不改变字形, 既保住数字对齐又不引入字形割裂。
+ * 注意 Cascadia Mono 对中文无效 (中文仍回退到 UI 字体),
+ * 原来那套规则对「工程名」这类全中文列也不起作用。
+ */
 .grid__td.num,
 .grid__td.mono {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -562,7 +573,6 @@ textarea {
 
 /* 行号列: 灰底、弱化, 不与内容争视线 */
 .grid__td--idx {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
   background: var(--band);
@@ -619,7 +629,6 @@ textarea {
 
 .grid__td--total {
   border-left: 1px solid var(--rule-strong);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }

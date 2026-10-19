@@ -41,21 +41,22 @@ function cell(v: string | undefined): string {
   return v === undefined || v === '' ? '\u00A0' : v
 }
 
-/** 计数类列用等宽表格数字, 便于纵向扫读比较大小 */
+/** 计数类列: 数字对齐 (CSS tabular-nums), 字形与其余列一致 */
 function isNumericColumn(c: string): boolean {
   return c === 'Slot No' || c === '总计'
 }
 
-/** 标识符类列用等宽 */
-function isMonoColumn(c: string): boolean {
-  return (
-    c === 'Jig ID' ||
-    c === 'P/N' ||
-    c === 'Lot ID' ||
-    c === 'CST ID' ||
-    c === 'Jig 对应型号'
-  )
-}
+/*
+ * 表格数据单元格一律用 UI 字体, 不再按列分配等宽。
+ *
+ * 原先给 P/N、Jig ID、CST ID 等标识符列单独上 Cascadia Mono, 理由是
+ * "相同位数的编码边界齐平、便于纵向扫读"。实际观感是整张表拼了两块 ——
+ * 编码列一种字形、工程名/对应尺寸另一种, 用户反馈"列之间长得不一样"。
+ *
+ * 数字对齐改由 CSS 的 font-variant-numeric: tabular-nums 承担, 只让
+ * 数字等宽、不改字形, 两者兼得。附带一点: Cascadia Mono 对中文无效,
+ * 中文仍回退到 UI 字体, 所以「工程名」这类列原本就名不副实。
+ */
 
 /**
  * 行高常量。
@@ -214,7 +215,8 @@ export default function Grid({
         ? table.rows.slice(0, MEASURE_ROWS)
         : table.rows
     return table.columns.map((col) => {
-      const font = isMonoColumn(col) || isNumericColumn(col) ? 'mono' : 'ui'
+      // 全部列同一种字体, 列宽只需按 UI 字体量 (见 isNumericColumn 上方说明)
+      const font = 'ui' as const
       /*
        * 表头必须用**表头自己的**字体量 (.grid__th 是 11px UI 字体),
        * 不能拿数据列的 12.5px 等宽字体代量 —— 那会高估表头宽度,
@@ -400,7 +402,7 @@ export default function Grid({
                     const isSize = sizeIdx >= 0 && ci === sizeIdx
                     const isLast = ci === table.columns.length - 1
                     const cls = [
-                      isNumericColumn(c) ? 'num' : isMonoColumn(c) ? 'mono' : '',
+                      isNumericColumn(c) ? 'num' : '',
                       isSize && bad ? 'bad bad-bg' : '',
                       /*
                        * 汇总列: 数字右对齐 + 左侧竖规。
