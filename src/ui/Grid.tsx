@@ -26,17 +26,6 @@ export interface GridProps {
   rowHeight?: number
 }
 
-/**
- * 显示宽度: CJK 字符按 2 个字位算, 其余按 1 个。
- * 与 CSS 里的等宽字体单位一致 —— 12.5px 的 Cascadia Mono 下, 一个
- * ASCII 约 7.6px, 一个汉字正好约两倍。
- */
-function dispWidth(s: string): number {
-  let n = 0
-  for (const ch of s) n += ch.charCodeAt(0) > 255 ? 2 : 1
-  return n
-}
-
 /** 判断一行是否为小计行 (CST ID == "--") */
 function isSubtotal(row: Row): boolean {
   return row['CST ID'] === SUMMARY_CST
@@ -81,17 +70,106 @@ const DEFAULT_ROW_H = 30
 const OVERSCAN = 12
 /** 行号列宽 */
 const IDX_COL_W = 52
-/**
- * 列宽估算: 按内容实际长度算, 每列自适应, 不与窗口宽度绑定。
- *
- * 之前有个例外 —— `sizeColumn` (对应尺寸) 被硬编码成 0, 于是落到
- * MIN_COL_W=96 的兜底值。真实值形如 `65_77/27_77/42_77/48_83/48`
- * (26 字符), 需要约 220px, 于是这一列无论窗口多宽都只有 96px,
- * 配合 .grid__td 的 overflow:hidden, 单元格从**左侧**被硬裁掉
+/*
+ * 历史记录: `sizeColumn` (对应尺寸) 曾被硬编码成宽度 0, 于是落到
+ * MIN_COL_W 的兜底值。真实值形如 `65_77/27_77/42_77/48_83/48`
+ * (26 字符), 于是这一列无论窗口多宽都只有兜底宽度, 配合
+ * .grid__td 的 overflow:hidden, 单元格内容被硬裁掉
  * (显示成 `77/27_77/42_77/48_83`), 头几个字符直接消失。
  * 注意 text-overflow:ellipsis 在这里不生效 —— 单元格是 display:flex,
  * 文本被当作匿名 flex item, 溢出直接被 overflow:hidden 裁掉, 连省略号
- * 都没有, 看起来像数据本身就这样。
+ * 都没有, 看起来像数据本身就这样。现在所有列一律按内容实测宽度。
+ */
+/**
+ * 列宽估算用的字面宽度测量。
+ *
+ * 之前用 `dispWidth(s) * 7.6 + 24` 估算 —— 也就是"每个字符一律按
+ * 7.6px 算, 汉字按两个字位算"。这个假设不成立, 而且错得很不均匀:
+ *
+ *   实测(12.5px)
+ *     Cascadia Mono  '6072J-3931H'          11 字符 -> 80.57px (7.33/字符)
+ *     Segoe UI       '39/31_77/27_77/42_77'  29 字符 -> 180.06px (6.21/字符)
+ *     Segoe UI       'All Size'               8 字符 ->  38.34px (4.79/字符)
+ *     Segoe UI       'Jig N判定 另外移载'    18 字位 -> 105.32px (5.85/字位)
+ *
+ * 也就是说 UI 字体下宽字符只占 4.8px, 按 7.6 算会**高估** 58%;
+ * 而 mono 字体下 7.6 又略高于实测的 7.33, **低估**。两类误差方向相反,
+ * 所以"看起来有的列紧有的列松" —— 正是用户看到的不一致。
+ *
+ * 改用 canvas measureText 按真实字体量。
+ *
+ * 字体串直接取自 CSS 自定义属性 (tokens.css 的 --font-mono /
+ * --font-ui), 不在这里手写第二份 —— 手写的那份一旦漏掉回退字体,
+ * 量出来的宽度就不是实际渲染宽度, 会出现"公式算得够宽但仍裁字"的
+ * 情况: 「Jig 对应型号」列就踩过一次, 表头用 UI 字体 68.2px 而数据用
+ * 等宽字体, 两者共用一列宽, 只按数据算就会裁掉表头。
+ * 每列用哪套字体, 与 .grid__td.num/.mono 的 CSS 保持一致。
+ */
+const measureCtxs = new Map<string, CanvasRenderingContext2D>()
+
+/**
+ * 字体种类: 'head' 是表头 (.grid__th, 11px UI 字体), 其余是数据单元格
+ * (.grid__td, 12.5px, 等宽或 UI)。
+ */
+type FontKind = 'mono' | 'ui' | 'head'
+
+/** 读 CSS 变量里的字体栈; 读不到(测试环境/jsdom)时退回等宽估算 */
+function fontStack(kind: FontKind): string {
+  if (kind === 'head') {
+    // .grid__th 的 font-size: 11px, 字体继承 --font-ui
+    const raw =
+      typeof getComputedStyle === 'function' && typeof document !== 'undefined'
+        ? getComputedStyle(document.documentElement).getPropertyValue('--font-ui')
+        : ''
+    const family = raw.trim()
+    return family
+      ? `11px ${family}`
+      : "11px 'Segoe UI Variable Display', 'Microsoft YaHei UI', sans-serif"
+  }
+  const varName = kind === 'mono' ? '--font-mono' : '--font-ui'
+  const raw =
+    typeof getComputedStyle === 'function' && typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue(varName)
+      : ''
+  const family = raw.trim()
+  return family
+    ? `12.5px ${family}`
+    : kind === 'mono'
+      ? "12.5px 'Cascadia Mono', Consolas, monospace"
+      : "12.5px 'Segoe UI Variable Display', 'Microsoft YaHei UI', sans-serif"
+}
+
+function measure(text: string, font: FontKind): number {
+  let ctx = measureCtxs.get(font)
+  if (!ctx) {
+    const c = document.createElement('canvas').getContext('2d')
+    if (!c) return text.length * 7.6
+    c.font = fontStack(font)
+    ctx = c
+    measureCtxs.set(font, ctx)
+  }
+  return ctx.measureText(text).width
+}
+
+/**
+ * 单元格左右内边距合计 + 2px 余量。
+ *
+ * 内边距对应 .grid__td 的 `padding: 0 10px`。多出的 2px 不是随便加的:
+ * 实测按"文字宽 + 20"算出的列宽仍有 0.1~2.3px 的负余量 —— canvas 的
+ * measureText 与元素实际排版在字距/回退字体上有亚像素差异, 按测量值
+ * 刚好卡满时, 真实渲染常常差零点几个像素就把最后一笔挤掉。
+ * (这正是下拉框裁字那类 bug 的同一类成因。)
+ */
+const CELL_PAD_X = 22
+/** 列宽下限 */
+const MIN_COL_W = 68
+/**
+ * 列宽上限。
+ *
+ * 不封顶的话一列超长字符串 (例如尺寸串
+ * `65_77/27_77/42_77/48_83/42_77/48_83/48`) 会把整张表撑到几千像素宽,
+ * 其余列全被推到屏幕外。封顶后超宽内容会被裁, 这是刻意的取舍:
+ * 审查页最容易超宽的就是「对应尺寸」列, 而横向滚动仍可查看全文。
  */
 const MAX_COL_W = 360
 /** 全量扫描的行数上限: 超过则只扫前 N 行, 避免 10 万行时卡顿 */
@@ -124,6 +202,10 @@ export default function Grid({
    * 窗口一拉宽, 某列就独吞宽度 (末列"对应尺寸"被拉到 470px);
    * 窗口一收窄, 内容就被 overflow:hidden 从侧面裁掉。现在列宽只由
    * 内容决定: 表格要么刚好放下, 要么整体横向滚动。
+   *
+   * 宽度用 canvas measureText 实测, 不再用 `dispWidth * 7.6` 估算 ——
+   * 那个估算对 UI 字体高估约 58%、对等宽字体低估, 造成"等宽列紧凑、
+   * 中文列宽松"的观感不一致。见 measure() 上方的说明。
    */
   const widths = useMemo(() => {
     if (isEmpty) return [] as number[]
@@ -132,13 +214,21 @@ export default function Grid({
         ? table.rows.slice(0, MEASURE_ROWS)
         : table.rows
     return table.columns.map((col) => {
-      // 表头本身也要放得下 (如 "Glass判定" 比任何数据都宽一点)
-      let max = dispWidth(col)
+      const font = isMonoColumn(col) || isNumericColumn(col) ? 'mono' : 'ui'
+      /*
+       * 表头必须用**表头自己的**字体量 (.grid__th 是 11px UI 字体),
+       * 不能拿数据列的 12.5px 等宽字体代量 —— 那会高估表头宽度,
+       * 白白撑宽一列 (「Jig 对应型号」列就是这样多出近 30px,
+       * 正是用户看到的"这一块比较宽松")。
+       */
+      let max = Math.max(measure(col, 'head'), measure(col, font))
       for (const r of sample) {
-        const w = dispWidth(r[col] ?? '')
+        const w = measure(r[col] ?? '', font)
         if (w > max) max = w
       }
-      return Math.min(Math.max(max * 7.6 + 24, 68), MAX_COL_W)
+      return Math.round(
+        Math.min(Math.max(max + CELL_PAD_X, MIN_COL_W), MAX_COL_W),
+      )
     })
   }, [table, isEmpty])
 
@@ -169,8 +259,11 @@ export default function Grid({
    * overflow:hidden 从侧面裁掉, 两个现象是同一个设计缺陷的两面。
    */
   const idxW = showRowNumbers ? IDX_COL_W : 0
-  // widths 已保证每项都 > 0, 这里再兜一层, 保证 colTemplate 合法。
-  const cols = useMemo(() => widths.map((w) => (w > 0 ? w : 68)), [widths])
+  // widths 已保证每项都 >= MIN_COL_W, 这里再兜一层, 保证 colTemplate 合法。
+  const cols = useMemo(
+    () => widths.map((w) => (w > 0 ? w : MIN_COL_W)),
+    [widths],
+  )
 
   // 汇总列在 column 索引中的位置 (-1 表示无)
   const pinIdx = useMemo(
