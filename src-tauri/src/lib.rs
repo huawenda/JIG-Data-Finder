@@ -157,20 +157,28 @@ pub fn run() {
                     }
                 })
                 .on_tray_icon_event(|tray, event| {
-                    // 单击切换显示/隐藏, 双击置前, 对齐 PySide2 版行为
+                    /*
+                     * 单击托盘图标: 只把窗口显示出来, 再次单击不做任何事。
+                     *
+                     * 原先是切换显示/隐藏 (is_visible 判定), 用户反馈不要
+                     * 这个往返 —— 隐藏窗口的唯一入口应该是点右上角的 X
+                     * (或托盘菜单), 托盘图标只负责"把窗口找回来"。
+                     *
+                     * 所以这里不再判断 is_visible, 一律 show + unminimize
+                     * + set_focus:
+                     *   show        —— 窗口被 X 隐藏后要重新显示
+                     *   unminimize  —— 窗口是最小化状态时 show 不足以置前
+                     *   set_focus   —— 抢到焦点, 否则窗口在后台不显眼
+                     */
                     if let TrayIconEvent::Click { button, button_state, .. } = event {
                         let Some(win) = tray.app_handle().get_webview_window("main") else {
                             return;
                         };
                         match (button, button_state) {
                             (MouseButton::Left, MouseButtonState::Up) => {
-                                // is_visible 返回 Result, 出错时按"不可见"处理并显示窗口
-                                if win.is_visible().unwrap_or(false) {
-                                    let _ = win.hide();
-                                } else {
-                                    let _ = win.show();
-                                    let _ = win.set_focus();
-                                }
+                                let _ = win.show();
+                                let _ = win.unminimize();
+                                let _ = win.set_focus();
                             }
                             (MouseButton::Left, MouseButtonState::Down) => {}
                             _ => {}
