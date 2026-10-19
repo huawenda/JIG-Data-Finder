@@ -131,6 +131,7 @@ export function createDefaultConfig(): AppConfig {
     productionIndicatorCode: '50000',
     engineeringConfig: {
       PNP: { order: 10 },
+      'PNP 2nd': { order: 15 },
       'Jig 洗净及检查': { order: 20 },
       'Jig Loading': { order: 30 },
       'Jig Unloading': { order: 40 },
@@ -231,6 +232,32 @@ export function mergeConfig(
     // 类型不匹配时保留默认值, 避免损坏的配置拖垮应用
     if (Array.isArray(base[key]) !== Array.isArray(v)) continue
     if (typeof base[key] !== typeof v) continue
+
+    /*
+     * 工序表要并集, 不能整体替换。
+     *
+     * 用户磁盘上的 config.json 里存着一份完整的 engineering_config,
+     * 它会整个盖掉默认值 —— 于是以后再往默认值里加新工序(比如
+     * "PNP 2nd"), 老用户永远看不到: 该工序不在他的配置文件里,
+     * config 里就没有它, pivot.ts 取 order 时退回 999, 静默排到
+     * 最后面。不报错、不提示, 只是位置不对, 极难察觉。
+     *
+     * 工序表没有用户可编辑的入口(能改的只有型号尺寸映射), 所以
+     * 不存在"用户故意删掉某道工序"的情况, 并集是安全的。默认顺序
+     * 打底, 磁盘值优先 —— 改过 order 的用户不受影响。
+     */
+    if (key === 'engineeringConfig' && isPlainObject(v) && isPlainObject(base[key])) {
+      const merged: Record<string, { order: number }> = {
+        ...(base[key] as Record<string, { order: number }>),
+      }
+      for (const [stage, cfgv] of Object.entries(v as Record<string, unknown>)) {
+        const oc = (cfgv as { order?: unknown } | null)?.order
+        if (typeof oc === 'number' && Number.isFinite(oc)) merged[stage] = { order: oc }
+      }
+      ;(base as unknown as Record<string, unknown>)[key] = merged
+      continue
+    }
+
     ;(base as unknown as Record<string, unknown>)[key] = v
   }
 
@@ -264,6 +291,11 @@ export function mergeConfig(
 /** tableDefaultRowHeight -> table_default_row_height */
 function toSnakeCase(s: string): string {
   return s.replace(/([A-Z])/g, '_$1').toLowerCase()
+}
+
+/** 排除数组与 null: JSON.parse 出来的东西不该是这些 */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
 /** 覆盖式更新运行时配置 */

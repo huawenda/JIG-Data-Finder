@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx-js-style'
 import { validateSizeMatch, rulesFromConfig } from '../../src/core/validate'
 import { createDefaultConfig } from '../../src/core/config'
+import { generatePivot } from '../../src/core/pivot'
 import { extractJigIds } from '../../src/core/clipboard'
 
 const FIXTURE = resolve(__dirname, '..', '..', 'test-500.xlsx')
@@ -22,6 +23,15 @@ const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.Shee
 })
 const cfg = createDefaultConfig()
 const rules = rulesFromConfig(cfg)
+const strRows = rows.map((r) => {
+  const o: Record<string, string> = {}
+  for (const [k, v] of Object.entries(r)) o[k] = String(v ?? '')
+  return o
+})
+// 复用生产代码生成透视表, 不在校验脚本里复刻一遍列序逻辑。
+// 过滤 INPRODUCTION 的谓词与 App.tsx 的 filterActive 一致。
+const active = strRows.filter((r) => r['Jig状态'] === cfg.jigStatusActiveValue)
+const pivot = generatePivot(active, false, cfg)
 
 describe('test-500.xlsx', () => {
   it('有 500 行数据', () => {
@@ -45,12 +55,46 @@ describe('test-500.xlsx', () => {
     expect(inProd).toBeLessThan(rows.length)
   })
 
-  it('覆盖 engineeringConfig 的全部 10 道工序', () => {
+  it('覆盖 engineeringConfig 的全部 11 道工序', () => {
     const present = new Set(rows.map((r) => r['工程名'] as string))
     for (const stage of Object.keys(cfg.engineeringConfig)) {
       expect(present.has(stage), `缺少工序 ${stage}`).toBe(true)
     }
-    expect(present.size).toBe(10)
+    expect(present.size).toBe(11)
+  })
+
+  // 工序顺序是透视表的列序, 排错不会报错只会位置不对, 所以直接断顺序。
+  it('PNP 2nd 排在 PNP 与 Jig 洗净及检查之间', () => {
+    const orders = Object.entries(cfg.engineeringConfig)
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([name]) => name)
+    const iPnp = orders.indexOf('PNP')
+    const i2nd = orders.indexOf('PNP 2nd')
+    const iWash = orders.indexOf('Jig 洗净及检查')
+    expect(iPnp).toBeGreaterThanOrEqual(0)
+    expect(i2nd).toBeGreaterThanOrEqual(0)
+    expect(iWash).toBeGreaterThanOrEqual(0)
+    expect(iPnp).toBeLessThan(i2nd)
+    expect(i2nd).toBeLessThan(iWash)
+  })
+
+  it('透视表的列序与工序顺序一致', () => {
+    const order = new Map(
+      Object.entries(cfg.engineeringConfig).map(([k, v]) => [k, v.order]),
+    )
+    // P/N 和 CST ID 是行标识列, 总计是汇总列, 都不是工序, 不参与排序断言。
+    const nonStage = new Set(['P/N', 'CST ID', cfg.keywordTotal])
+    const stages = pivot.columns.filter((c) => !nonStage.has(c))
+    expect(stages.length).toBe(Object.keys(cfg.engineeringConfig).length)
+    const rank = stages.map((s) => {
+      const r = order.get(s)
+      expect(r, `列 ${s} 不在 engineeringConfig 里, 会被排到最后`).toBeDefined()
+      return r as number
+    })
+    for (let i = 1; i < rank.length; i++) {
+      expect(rank[i - 1], `第 ${i} 列 ${stages[i]} 排在了 ${stages[i - 1]} 之后`)
+        .toBeLessThanOrEqual(rank[i])
+    }
   })
 
   it('工程号覆盖多个, 且包含生产中判定值 50000', () => {

@@ -54,6 +54,38 @@ describe('配置迁移: 旧版 snake_case 键名', () => {
     expect(c.engineeringConfig.PNP.order).toBe(10)
   })
 
+  // 回归: engineering_config 曾被整体替换, 导致后来新增的默认工序
+  // 对老用户永远不生效 —— 磁盘上的旧表整个盖掉默认值, 该工序不在
+  // 用户配置里, pivot.ts 取 order 退回 999, 静默排到最后面。
+  it('工序表取并集: 磁盘上的旧表不会抹掉新增的默认工序', () => {
+    const stored = {
+      engineering_config: {
+        PNP: { order: 10 },
+        'Jig 洗净及检查': { order: 20 },
+        'Jig Loading': { order: 30 },
+      },
+    }
+    const c = mergeConfig(stored)
+    expect(c.engineeringConfig['PNP 2nd']).toBeDefined()
+    expect(c.engineeringConfig['Jig入库']).toBeDefined()
+    expect(Object.keys(c.engineeringConfig).length).toBe(11)
+  })
+
+  it('工序表并集时磁盘上的 order 优先, 用户改过的不被默认值覆盖', () => {
+    const c = mergeConfig({ engineering_config: { PNP: { order: 99 } } })
+    expect(c.engineeringConfig.PNP.order).toBe(99)
+  })
+
+  it('工序名重复不会互相污染, 新增工序的 order 落在 PNP 与洗净检查之间', () => {
+    const c = createDefaultConfig()
+    expect(c.engineeringConfig['PNP 2nd'].order).toBeGreaterThan(
+      c.engineeringConfig.PNP.order,
+    )
+    expect(c.engineeringConfig['PNP 2nd'].order).toBeLessThan(
+      c.engineeringConfig['Jig 洗净及检查'].order,
+    )
+  })
+
   it('旧版缺失的字段回落到默认值', () => {
     const c = mergeConfig(legacyConfig)
     const d = createDefaultConfig()

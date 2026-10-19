@@ -141,6 +141,7 @@ for _pn, _model, _red in PN_MODELS:
 #   另配 50600 作为同工序的第二工程号, 复现真实导出里的双编号。
 ENGINEERINGS = [
     ("PNP", "9000"),
+    ("PNP 2nd", "09050"),
     ("Jig 洗净及检查", "9100"),
     ("Jig Loading", "50000"),
     ("Jig Loading", "50600"),
@@ -199,7 +200,7 @@ def main() -> None:
     ])
 
     # 500 行均摊到 16 个 P/N: 每组 31 行, 余下 8 行分给前 8 组。
-    # 每组至少 31 行是为了能覆盖 ENGINEERINGS 里全部 11 个工程名/号组合
+    # 每组至少 31 行是为了能覆盖 ENGINEERINGS 里全部 12 个工程名/号组合
     # (循环取模, 11 个一组), 否则某个工序会整组缺失。
     n = len(PN_MODELS)
     base, extra = divmod(ROWS_TOTAL, n)

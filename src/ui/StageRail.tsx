@@ -9,7 +9,7 @@ export interface StageRailProps {
 /**
  * 工序轨道。
  *
- * engineeringConfig 里那 10 道工序 (PNP=10 → Jig入库=100) 本来就是
+ * engineeringConfig 里那 11 道工序 (PNP=10 → Jig入库=100) 本来就是
  * 产线流水顺序, 这是这个领域独有的信息, 所以画成一条轨道而不是
  * 普通表格列: 一眼能看出"今天还没有治具走到搬出"这类现场状态。
  *
