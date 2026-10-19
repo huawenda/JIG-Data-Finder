@@ -80,6 +80,9 @@ export default function App() {
   // 审查页
   const [reviewAll, setReviewAll] = useState<Table>(EMPTY_PIVOT)
   const [pnFilter, setPnFilter] = useState('全部')
+  // 审查页"只看尺寸不匹配"。默认关 —— 审查页默认是全量视图,
+  // 用户想收窄时自己勾。勾上后该页导出的也只有不匹配的行。
+  const [reviewOnlyMismatch, setReviewOnlyMismatch] = useState(false)
 
   const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
@@ -304,7 +307,13 @@ export default function App() {
   )
 
   // ---- 审查页当前视图 ----
-  const reviewTable = useMemo(() => {
+  //
+  // 两个维度是正交的, 先后顺序不能反:
+  //   先按 P/N 过滤 (用户在下拉框选的)
+  //   再按"只看尺寸不匹配"过滤 (用户勾的复选框)
+  // 反过来的话, 计数会随勾选变化, 而下拉框本身又依赖已过滤的结果,
+  // 会出现"选了某个 P/N 却在复选框过滤后没有该 P/N"的自相矛盾。
+  const reviewByPn = useMemo(() => {
     if (reviewAll.rows.length === 0) return EMPTY_PIVOT
     if (pnFilter === '全部') return reviewAll
     return {
@@ -349,7 +358,33 @@ export default function App() {
     [detail, mismatchFlags, sizeValidation],
   )
   // 审查页不过开关
-  const reviewFlags = useMemo(() => mismatchFlags(reviewTable), [reviewTable, mismatchFlags])
+  const reviewFlags = useMemo(() => mismatchFlags(reviewByPn), [reviewByPn, mismatchFlags])
+
+  // "只看尺寸不匹配": 在 P/N 过滤之后按不匹配标记再过一遍。
+  // 不匹配的行一定落在"对应尺寸"列存在的前提下, 所以条件与
+  // mismatchFlags 的前置判断一致 —— 表里没有该列时不做任何过滤,
+  // 否则会把整个表清空, 用户会以为"数据全都不匹配"。
+  //
+  // 过滤掉的行会让 reviewFlags 与新行序错位, 所以另存一份裁剪后的
+  // 标记给表格和导出用, 不能直接复用 reviewFlags。
+  const reviewFiltered = useMemo(() => {
+    if (!reviewOnlyMismatch) return { table: reviewByPn, flags: reviewFlags }
+    if (!reviewByPn.columns.includes('对应尺寸')) {
+      return { table: reviewByPn, flags: reviewFlags }
+    }
+    const rows: Row[] = []
+    const flags: boolean[] = []
+    reviewByPn.rows.forEach((r, i) => {
+      if (reviewFlags[i] === true) {
+        rows.push(r)
+        flags.push(true)
+      }
+    })
+    return { table: { columns: reviewByPn.columns, rows }, flags }
+  }, [reviewByPn, reviewOnlyMismatch, reviewFlags])
+
+  const reviewTable = reviewFiltered.table
+  const reviewViewFlags = reviewFiltered.flags
 
   // ---- 导出 ----
   const exportCurrent = useCallback(async () => {
@@ -366,7 +401,7 @@ export default function App() {
         ? { table: currentPivot, name: '全量透视表' }
         : null,
       review: reviewTable.rows.length
-        ? { table: reviewTable, name: '审查数据', red: { rows: reviewFlags, column: '对应尺寸' } }
+        ? { table: reviewTable, name: '审查数据', red: { rows: reviewViewFlags, column: '对应尺寸' } }
         : null,
     }
 
@@ -402,7 +437,7 @@ export default function App() {
     } catch (e) {
       setToast({ kind: 'error', text: `导出失败:${errText(e)}` })
     }
-  }, [detail, detailFlags, queryPivot, pivotAll, pivotProd, pivotScope, reviewTable, reviewFlags, tab, cfg])
+  }, [detail, detailFlags, queryPivot, pivotAll, pivotProd, pivotScope, reviewTable, reviewViewFlags, tab, cfg])
 
   // ---- 设置 ----
   const draftFrom = (c: AppConfig): SettingsDraft => ({
@@ -658,6 +693,14 @@ export default function App() {
               <span className="toolbar__label">
                 尺寸不匹配 {reviewFlags.filter(Boolean).length} 行
               </span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={reviewOnlyMismatch}
+                  onChange={(e) => setReviewOnlyMismatch(e.target.checked)}
+                />
+                只看不匹配
+              </label>
             </div>
           )}
 
@@ -695,12 +738,24 @@ export default function App() {
           {tab === 'review' && (
             <Grid
               table={reviewTable}
-              mismatchFlags={reviewFlags}
+              mismatchFlags={reviewViewFlags}
               rowHeight={cfg.tableDefaultRowHeight}
               sizeColumn="对应尺寸"
               pnColumn="P/N"
-              emptyTitle="没有可审查的数据"
-              emptyHint="源数据里没有状态为 INPRODUCTION 的记录。"
+              emptyTitle={
+                reviewAll.rows.length === 0
+                  ? '没有可审查的数据'
+                  : reviewOnlyMismatch
+                    ? '当前筛选下没有尺寸不匹配的记录'
+                    : '没有符合条件的数据'
+              }
+              emptyHint={
+                reviewAll.rows.length === 0
+                  ? '源数据里没有状态为 INPRODUCTION 的记录。'
+                  : reviewOnlyMismatch
+                    ? '取消勾选「只看不匹配」可看到该范围内的全部记录；也可以换一个 P/N。'
+                    : '换一个 P/N 试试。'
+              }
             />
           )}
 
