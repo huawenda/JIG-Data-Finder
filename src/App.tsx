@@ -6,7 +6,18 @@ import type { AppConfig } from './core/config'
 import { generatePivot } from './core/pivot'
 import { queryData, processSourceData, NOT_FOUND } from './core/query'
 import { processClipboardContent } from './core/clipboard'
-import { validateSizeMatch, rulesFromConfig } from './core/validate'
+import { rulesFromConfig } from './core/validate'
+import { buildExceptionIndex } from './core/jigExceptions'
+import type { JigException } from './core/jigExceptions'
+import {
+  classifyReviewTable,
+  isFlagged,
+  matchesScope,
+  REVIEW_SCOPES,
+} from './core/review'
+import type { ReviewKind, ReviewScope } from './core/review'
+import { applyTheme, readCachedTheme, watchSystemTheme } from './core/theme'
+import type { ThemeMode } from './core/theme'
 import { readExcel, validateSource, writeExcel } from './core/excel'
 import type { RedMark } from './core/excel'
 import type { Row, Table } from './core/table'
@@ -17,6 +28,7 @@ import StageRail from './ui/StageRail'
 import SettingsDialog from './ui/SettingsDialog'
 import type { SettingsDraft } from './ui/SettingsDialog'
 import SizeMappingDialog from './ui/SizeMappingDialog'
+import JigExceptionDialog from './ui/JigExceptionDialog'
 import {
   IS_TAURI,
   basename,
@@ -28,6 +40,7 @@ import {
   readClipboardText,
   readConfigFile,
   writeConfigFile,
+  setWindowTheme,
   withTimestamp,
 } from './ui/bridge'
 import type { PickedFile } from './ui/bridge'
@@ -43,6 +56,28 @@ interface Toast {
 }
 
 const EMPTY_PIVOT: Table = emptyTable()
+
+/**
+ * 审查页各档筛空时的文案。
+ *
+ * 分档以后"空"有多种原因, 只说"没有符合条件的数据"用户不知道是数据真的
+ * 没问题、还是档位选窄了。所以每一档都要说清"这一档为什么可能为空"以及
+ * "怎么放宽"。
+ */
+const REVIEW_EMPTY: Record<ReviewScope, { title: string; hint: string }> = {
+  all: {
+    title: '没有符合条件的数据',
+    hint: '换一个 P/N, 或把 P/N 切回「全部」。',
+  },
+  mismatch: {
+    title: '当前范围内没有尺寸不匹配的记录',
+    hint: '这一档包含例外对象; 切到「所有对象」可看到该范围内的全部记录。',
+  },
+  exception: {
+    title: '当前范围内没有命中例外对象的记录',
+    hint: '例外清单在「例外对象」面板里维护; 切到「尺寸不匹配(含例外)」可一并看到型号能力不足的行。',
+  },
+}
 
 export default function App() {
   const [cfg, setCfg] = useState<AppConfig>(globalConfig)
@@ -80,13 +115,33 @@ export default function App() {
   // 审查页
   const [reviewAll, setReviewAll] = useState<Table>(EMPTY_PIVOT)
   const [pnFilter, setPnFilter] = useState('全部')
-  // 审查页"只看尺寸不匹配"。默认关 —— 审查页默认是全量视图,
-  // 用户想收窄时自己勾。勾上后该页导出的也只有不匹配的行。
-  const [reviewOnlyMismatch, setReviewOnlyMismatch] = useState(false)
+  /*
+   * 审查页的三档视野。默认「所有对象」—— 审查页默认是全量视图, 用户想
+   * 收窄时自己切档。筛选同时作用于导出: 切到「仅例外」再导出, 拿到的
+   * 就是一张纯例外清单, 可以直接发给车间。
+   *
+   * 取代了原来的「只看不匹配」勾选框: 那个只有两态(全部/标红), 分不出
+   * "治具本身的毛病"与"型号能力不够", 而这正是现场要分别处理的两件事。
+   */
+  const [reviewScope, setReviewScope] = useState<ReviewScope>('all')
 
   const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
   const [showSizeMapping, setShowSizeMapping] = useState(false)
+  const [showExceptions, setShowExceptions] = useState(false)
+  /*
+   * 当前生效的主题模式。
+   *
+   * 与 cfg.theme 刻意分开: 设置面板里选主题是**即时预览**的, 那时配置
+   * 还没保存。若直接读 cfg.theme, 预览就得先改配置, 取消时再把磁盘配置
+   * 改回去 —— 多一次写盘, 而且中途崩溃会把没确认的选择留下来。
+   *
+   * 初始值优先取 localStorage 缓存: 配置读取是异步的, 等它回来再上色
+   * 会让深色用户每次启动闪一下白。缓存由 applyTheme 每次写入。
+   */
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    return readCachedTheme() ?? cfg.theme
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ---- 启动: 读配置 + 同步关闭到托盘开关给宿主层 ----
@@ -104,6 +159,8 @@ export default function App() {
           const merged = mergeConfig(stored)
           setCfg(merged)
           setSizeValidation(merged.sizeValidationEnabled)
+          /* 配置是主题的权威来源, 覆盖 localStorage 缓存的首帧猜测 */
+          setThemeMode(merged.theme)
           applyConfig(merged)
           document.documentElement.style.setProperty(
             '--row-h',
@@ -136,6 +193,23 @@ export default function App() {
      */
     invoke('set_tray_enabled', { enabled: cfg.trayEnabled }).catch(() => {})
   }, [cfg.closeToTray, cfg.trayEnabled])
+
+  // ---- 主题 ----
+  /*
+   * 所有配色变化都从这里出去: 写 <html data-theme>, 同步原生控件配色,
+   * 再把窗口标题栏也改成一致的颜色。
+   *
+   * 'system' 模式下额外挂一个监听 —— 用户在 Windows 设置里切深浅色时,
+   * 界面要立刻跟上, 不必等重启。显式 light/dark 时该监听是空操作。
+   */
+  useEffect(() => {
+    const resolved = applyTheme(themeMode)
+    void setWindowTheme(resolved)
+    return watchSystemTheme(themeMode, (systemDark) => {
+      const r = applyTheme(themeMode, systemDark)
+      void setWindowTheme(r)
+    })
+  }, [themeMode])
 
   // ---- 提示条自动消失 ----
   useEffect(() => {
@@ -345,43 +419,84 @@ export default function App() {
   // 迁移时曾把开关一刀切在两个表上, 于是 size_validation_enabled=false
   // 的用户打开数据审查页看到的是一片"全部匹配", 与旧版行为不一致,
   // 很容易被误判成数据或算法有问题。
+  /*
+   * 例外索引: JIG ID -> 记录。
+   *
+   * 逐行判定都要查一次, 十万行乘几十条例外, 若每次都遍历数组会到千万级
+   * 字符串比较。索引后是 O(1)。依赖 cfg.jigExceptions, 面板保存后自动重建。
+   */
+  const exceptionIndex = useMemo(
+    () => buildExceptionIndex(cfg.jigExceptions),
+    [cfg.jigExceptions],
+  )
+
+  /*
+   * 标红标记 = 分类结果里非 ok 的那些。查询结果页仍只要一个布尔,
+   * 分类的细节(例外 / 尺寸不匹配)只在审查页用得上。
+   */
   const mismatchFlags = useCallback(
-    (table: Table): boolean[] => {
-      if (!table.columns.includes('对应尺寸')) return []
-      return table.rows.map((r) => !validateSizeMatch(r['P/N'] ?? '', r['对应尺寸'] ?? '', rules))
-    },
-    [rules],
+    (table: Table): boolean[] => classifyReviewTable(table, rules, exceptionIndex).map(isFlagged),
+    [rules, exceptionIndex],
   )
 
   const detailFlags = useMemo(
     () => (sizeValidation ? mismatchFlags(detail) : []),
     [detail, mismatchFlags, sizeValidation],
   )
-  // 审查页不过开关
-  const reviewFlags = useMemo(() => mismatchFlags(reviewByPn), [reviewByPn, mismatchFlags])
 
-  // "只看尺寸不匹配": 在 P/N 过滤之后按不匹配标记再过一遍。
-  // 不匹配的行一定落在"对应尺寸"列存在的前提下, 所以条件与
-  // mismatchFlags 的前置判断一致 —— 表里没有该列时不做任何过滤,
-  // 否则会把整个表清空, 用户会以为"数据全都不匹配"。
-  //
-  // 过滤掉的行会让 reviewFlags 与新行序错位, 所以另存一份裁剪后的
-  // 标记给表格和导出用, 不能直接复用 reviewFlags。
+  /*
+   * 审查页的分类结果。审查页不过 sizeValidation 开关 —— 这一页的存在意义
+   * 就是挑出对不上的治具, 关掉标红这页就没有内容了。
+   *
+   * 保留完整分类(而不是立刻折成布尔), 是因为三档视野要按类型筛:
+   * 「仅例外」只留 exception, 「尺寸不匹配」留所有非 ok。
+   */
+  const reviewKinds = useMemo<ReviewKind[]>(
+    () => classifyReviewTable(reviewByPn, rules, exceptionIndex),
+    [reviewByPn, rules, exceptionIndex],
+  )
+
+  const reviewFlags = useMemo(() => reviewKinds.map(isFlagged), [reviewKinds])
+
+  // 各档的行数, 给分档按钮显示。all 用表长, 不另算一遍。
+  const reviewCounts = useMemo(() => {
+    let mismatch = 0
+    let exception = 0
+    for (const k of reviewKinds) {
+      if (k === 'exception') {
+        exception += 1
+        mismatch += 1
+      } else if (k === 'mismatch') {
+        mismatch += 1
+      }
+    }
+    return { all: reviewByPn.rows.length, mismatch, exception }
+  }, [reviewKinds, reviewByPn])
+
+  /*
+   * 按档筛行。分类数组在这之前算好, 所以这里只做过滤 —— 一行不重复判定。
+   *
+   * 表里没有「对应尺寸」列(reviewKinds 为空)时不做任何过滤: 否则会把整表
+   * 清空, 用户会以为"数据全都不匹配"。这与改造前的处理一致。
+   *
+   * 过滤掉的行会让 reviewFlags 与新行序错位, 所以另存一份裁剪后的标记给
+   * 表格和导出用, 不能直接复用 reviewFlags。
+   */
   const reviewFiltered = useMemo(() => {
-    if (!reviewOnlyMismatch) return { table: reviewByPn, flags: reviewFlags }
-    if (!reviewByPn.columns.includes('对应尺寸')) {
+    if (reviewScope === 'all' || reviewKinds.length === 0) {
       return { table: reviewByPn, flags: reviewFlags }
     }
     const rows: Row[] = []
     const flags: boolean[] = []
     reviewByPn.rows.forEach((r, i) => {
-      if (reviewFlags[i] === true) {
+      if (matchesScope(reviewKinds[i], reviewScope)) {
         rows.push(r)
+        // 能进这一档的行一定标红, 不必再查一次
         flags.push(true)
       }
     })
     return { table: { columns: reviewByPn.columns, rows }, flags }
-  }, [reviewByPn, reviewOnlyMismatch, reviewFlags])
+  }, [reviewByPn, reviewScope, reviewKinds, reviewFlags])
 
   const reviewTable = reviewFiltered.table
   const reviewViewFlags = reviewFiltered.flags
@@ -450,6 +565,7 @@ export default function App() {
     closeToTray: c.closeToTray,
     trayEnabled: c.trayEnabled,
     exportTimestampEnabled: c.exportTimestampEnabled,
+    theme: c.theme,
   })
 
   const saveSettings = (d: SettingsDraft) => {
@@ -458,6 +574,7 @@ export default function App() {
     setShowSettings(false)
     setSizeValidation(d.sizeValidationEnabled)
     applyConfig(next)
+    setThemeMode(d.theme)
     document.documentElement.style.setProperty('--row-h', `${d.tableDefaultRowHeight}px`)
 
     // 写回磁盘, 让设置跨启动保留
@@ -468,29 +585,28 @@ export default function App() {
       )
   }
 
-  // ---- 型号尺寸匹配设置 ----
+  // ---- 型号尺寸匹配 / 例外对象 ----
   /**
-   * 改映射之后必须把已加载的表全部重算一遍。
+   * 配置改动后重算所有已加载的表。
    *
-   * 「对应尺寸」列不是查询时现算的, 而是在建表阶段由 query.ts 的
-   * applySizeMapping 填进去的。所以只 setCfg 的话, 界面上的列值会是旧的,
-   * 用户会以为保存没生效 —— 而更糟的是, 导出文件里也是旧值, 拿去做
-   * 尺寸核对会得出错误结论。这里显式重跑各表的构建流程。
+   * 「对应尺寸」列不是渲染时现算的, 而是在建表阶段由 query.ts 的
+   * applySizeMapping 填进去的; 红字标记也是拿着表内容算的。所以只 setCfg
+   * 的话, 界面上的列值还是旧的, 用户会以为保存没生效 —— 更糟的是导出
+   * 文件里也是旧值, 拿去做尺寸核对会得出错误结论。
+   *
+   * 两个面板改的是同一列的不同侧面(型号能力 vs 单台治具例外), 重算流程
+   * 完全一样, 抽出来共用, 免得两处逻辑日后慢慢走偏。
    */
-  const saveSizeMapping = (mapping: Record<string, string>, order: string[]) => {
-    const next = { ...cfg, jigSizeMapping: mapping, jigSizeMappingOrder: order }
-    setCfg(next)
-    setShowSizeMapping(false)
-    applyConfig(next)
-
-    if (source) {
+  const rebuildTables = useCallback(
+    (next: AppConfig) => {
+      if (!source) return
       const active = filterActive(source.rows, next)
       setPivotAll(generatePivot(active, false, next))
       setPivotProd(generatePivot(active, true, next))
       setReviewAll(processSourceData(source.rows, next))
 
       // 查询结果依赖当前输入框里的 ID, 重新跑一遍同样的流程。
-      // 这里不复用 runQuery: 它带状态与日志副作用, 而改映射不是查询动作。
+      // 这里不复用 runQuery: 它带状态与日志副作用, 而改配置不是查询动作。
       const ids = input
         .split(/\r?\n/)
         .map((s) => s.trim())
@@ -500,7 +616,18 @@ export default function App() {
         const hits = source.rows.filter((r) => ids.includes(r['Jig ID']))
         setQueryPivot(generatePivot(hits, false, next))
       }
-    }
+    },
+    [source, input],
+  )
+
+  const saveSizeMapping = (mapping: Record<string, string>, order: string[]) => {
+    // 只 patch 自己的两个字段。不能写成 { ...cfg, ...传入的整个对象 } ——
+    // 那样会把另一个面板刚存的 jigExceptions 一起盖掉。
+    const next = { ...cfg, jigSizeMapping: mapping, jigSizeMappingOrder: order }
+    setCfg(next)
+    setShowSizeMapping(false)
+    applyConfig(next)
+    rebuildTables(next)
 
     writeConfigFile(next)
       .then(() =>
@@ -509,7 +636,38 @@ export default function App() {
       .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
   }
 
+  const saveJigExceptions = (list: JigException[]) => {
+    // 同上, 只 patch jigExceptions, 不碰 jigSizeMapping。
+    const next = { ...cfg, jigExceptions: list }
+    setCfg(next)
+    setShowExceptions(false)
+    applyConfig(next)
+    rebuildTables(next)
+
+    writeConfigFile(next)
+      .then(() => setToast({ kind: 'ok', text: `已保存 ${list.length} 条例外对象` }))
+      .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
+  }
+
   const currentPivot = pivotScope === 'all' ? pivotAll : pivotProd
+
+  /**
+   * 审查页筛空时的文案: 三种"空"要分开说。
+   *
+   *   源数据里没有 INPRODUCTION 记录 -> 没东西可审查
+   *   该 P/N 下没有记录             -> 是筛选条件的问题, 不是数据的问题
+   *   当前档筛空                   -> 换档就能看到别的
+   */
+  const reviewEmpty = useMemo(() => {
+    if (reviewAll.rows.length === 0) {
+      return {
+        title: '没有可审查的数据',
+        hint: '源数据里没有状态为 INPRODUCTION 的记录。',
+      }
+    }
+    if (reviewByPn.rows.length === 0) return REVIEW_EMPTY.all
+    return REVIEW_EMPTY[reviewScope]
+  }, [reviewAll.rows.length, reviewByPn.rows.length, reviewScope])
 
   const TABS: { id: TabId; label: string; count: number }[] = [
     { id: 'detail', label: '查询结果', count: detail.rows.length },
@@ -517,7 +675,6 @@ export default function App() {
     { id: 'pivot', label: '全量透视', count: currentPivot.rows.length },
     { id: 'review', label: '数据审查', count: reviewTable.rows.length },
   ]
-
   return (
     <div className="app">
       {/* ---- 第一层: 仪表头 ---- */}
@@ -554,6 +711,14 @@ export default function App() {
           onClick={() => setShowSizeMapping(true)}
         >
           型号尺寸匹配
+        </button>
+        <button
+          className="btn"
+          type="button"
+          title="维护「这台治具做不到这个 P/N」的例外清单"
+          onClick={() => setShowExceptions(true)}
+        >
+          例外对象
         </button>
         <input
           ref={fileInputRef}
@@ -690,17 +855,25 @@ export default function App() {
                 ))}
               </select>
               <span className="toolbar__spacer" />
-              <span className="toolbar__label">
-                尺寸不匹配 {reviewFlags.filter(Boolean).length} 行
-              </span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={reviewOnlyMismatch}
-                  onChange={(e) => setReviewOnlyMismatch(e.target.checked)}
-                />
-                只看不匹配
-              </label>
+              {/*
+                三档视野。取代原来的「只看不匹配」勾选框 —— 两态分不出
+                "治具本身的毛病"和"型号能力不够", 而这两件事现场要做的
+                动作完全不同。三档的顺序就是收窄的方向: 全部 -> 标红 -> 仅例外。
+              */}
+              <div className="scope" role="group" aria-label="审查范围">
+                {REVIEW_SCOPES.map((s) => (
+                  <button
+                    key={s.id}
+                    className="scope__btn"
+                    type="button"
+                    aria-pressed={reviewScope === s.id}
+                    onClick={() => setReviewScope(s.id)}
+                  >
+                    {s.label}
+                    <span className="scope__count">{reviewCounts[s.id]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -742,20 +915,8 @@ export default function App() {
               rowHeight={cfg.tableDefaultRowHeight}
               sizeColumn="对应尺寸"
               pnColumn="P/N"
-              emptyTitle={
-                reviewAll.rows.length === 0
-                  ? '没有可审查的数据'
-                  : reviewOnlyMismatch
-                    ? '当前筛选下没有尺寸不匹配的记录'
-                    : '没有符合条件的数据'
-              }
-              emptyHint={
-                reviewAll.rows.length === 0
-                  ? '源数据里没有状态为 INPRODUCTION 的记录。'
-                  : reviewOnlyMismatch
-                    ? '取消勾选「只看不匹配」可看到该范围内的全部记录；也可以换一个 P/N。'
-                    : '换一个 P/N 试试。'
-              }
+              emptyTitle={reviewEmpty.title}
+              emptyHint={reviewEmpty.hint}
             />
           )}
 
@@ -809,6 +970,7 @@ export default function App() {
           onSave={saveSettings}
           onClose={() => setShowSettings(false)}
           pickDirectory={pickDirectory}
+          onThemePreview={setThemeMode}
         />
       )}
 
@@ -817,6 +979,15 @@ export default function App() {
           config={cfg}
           onSave={saveSizeMapping}
           onClose={() => setShowSizeMapping(false)}
+        />
+      )}
+
+      {showExceptions && (
+        <JigExceptionDialog
+          config={cfg}
+          sourceRows={source?.rows ?? []}
+          onSave={saveJigExceptions}
+          onClose={() => setShowExceptions(false)}
         />
       )}
     </div>

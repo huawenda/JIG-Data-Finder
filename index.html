@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>JIG Data Finder</title>
+    <!--
+      上色必须早于首帧, 否则深色用户每次启动都会先看到一闪白底。
+      这段内联脚本与 src/core/theme.ts 的 applyTheme 逻辑重复, 但它是唯一
+      能赶在 CSS 应用与 React 挂载之前执行的手段 —— 模块脚本要等下载解析,
+      已经太晚了。规则保持与之完全一致: 缓存优先, 缺失时按浅色。
+    -->
+    <script>
+      try {
+        var mode = localStorage.getItem('jigdatafinder.theme')
+        var dark =
+          mode === 'dark' ||
+          (mode === 'system' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches)
+        var root = document.documentElement
+        root.dataset.theme = dark ? 'dark' : 'light'
+        root.style.colorScheme = dark ? 'dark' : 'light'
+      } catch (e) {
+        /* 存储不可用时保持浅色, 不阻断加载 */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

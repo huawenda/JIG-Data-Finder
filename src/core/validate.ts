@@ -44,6 +44,7 @@
  */
 
 import type { AppConfig } from './config'
+import { stripExceptionSuffix } from './jigExceptions'
 
 export interface SizeValidationRules {
   pnExtractStart: number
@@ -90,8 +91,21 @@ export function parseSizeCodes(size: string): string[] {
 /**
  * 验证 P/N 与对应尺寸是否匹配。
  *
+ * ## 例外对象不在这里判定
+ *
+ * 「某些具体治具做不了某个 P/N」是治具维度的规则, 需要 Jig ID 才能判,
+ * 而且优先级高于这里所有规则(包括 All Size 恒匹配)。它由调用方先判,
+ * 命中就直接标红, 不会进到这个函数。
+ *
+ * 这样切分的理由: 本函数保持"只看 P/N 和尺寸串"的纯粹形态, 输入决定
+ * 输出, 便于覆盖边界; 例外那条依赖外部清单, 放进来会让每次调用都带着
+ * 一张表, 反而不好测。组合点在 App.tsx 的 mismatchFlags。
+ *
+ * 但「对应尺寸」列可能带例外标记(如 `All Size(65例外)`), 所以入口要剥离,
+ * 保证即使带标记的串漏进来也按纯尺寸判定, 不会把标记里的数字当规格码。
+ *
  * @param pnValue  P/N 字符串
- * @param sizeValue 对应尺寸字符串
+ * @param sizeValue 对应尺寸字符串, 可带例外标记
  * @param rules 规则参数, 通常由 rulesFromConfig 构造
  * @returns true 表示匹配 (或不适用验证)
  */
@@ -100,11 +114,13 @@ export function validateSizeMatch(
   sizeValue: string,
   rules: SizeValidationRules,
 ): boolean {
-  // 1. All Size 恒匹配
-  if (sizeValue === rules.allSizeValue) return true
+  const size = stripExceptionSuffix(sizeValue)
 
-  // 2. 空值无法验证, 视为匹配 (与 Python 一致)
-  if (!pnValue || !sizeValue) return true
+  // 1. All Size 恒匹配
+  if (size === rules.allSizeValue) return true
+
+  // 2. 空值无法验证, 视为匹配
+  if (!pnValue || !size) return true
 
   // 3. 提取 P/N 中的尺寸编码; 长度不足视为匹配
   const start = rules.pnExtractStart
@@ -119,13 +135,5 @@ export function validateSizeMatch(
   // 也不放行一个可能装错的治具。
   if (pnDigits.length !== 4) return false
 
-  return parseSizeCodes(sizeValue).includes(pnDigits)
-}
-
-/** 批量标记: 返回每行是否需要标红, 与 DataFrame 行序一致 */
-export function markSizeMismatches(
-  rows: ReadonlyArray<{ pn: string; size: string }>,
-  rules: SizeValidationRules,
-): boolean[] {
-  return rows.map((r) => !validateSizeMatch(r.pn, r.size, rules))
+  return parseSizeCodes(size).includes(pnDigits)
 }

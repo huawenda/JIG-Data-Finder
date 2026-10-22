@@ -8,6 +8,15 @@
  * 2. 工程排序 order 值 10..100 必须与 Python 完全一致, 否则透视表列序不同。
  */
 
+import type { JigException } from './jigExceptions'
+import {
+  createPresetExceptions,
+  JIG_EXCEPTION_PRESET_VERSION,
+  mergePresetExceptions,
+} from './jigExceptionPresets'
+import type { ThemeMode } from './theme'
+import { isThemeMode } from './theme'
+
 export interface AppConfig {
   /** 窗口配置 */
   windowTitle: string
@@ -58,12 +67,39 @@ export interface AppConfig {
    */
   jigSizeMappingOrder: string[]
 
+  /**
+   * 例外对象: 型号能做、但这台具体治具做不到的组合。
+   *
+   * 一条记录 = (JIG ID, P/N, 类型)。判定与显示规则见 jigExceptions.ts。
+   * 与 jigSizeMapping 完全独立 —— 那个是型号维度、这个是治具维度,
+   * 两个面板各存各的字段, 互不覆盖。
+   */
+  jigExceptions: JigException[]
+
+  /**
+   * 预设补丁的版本号。见 jigExceptionPresets.ts 的说明。
+   *
+   * 只用来判断"这份配置是否已经见过出厂预设": 小于当前版本时把预设补进去
+   * (磁盘已有记录优先), 之后一律以磁盘为准。用户点「恢复默认」不改变它 ——
+   * 那是把面板内容重置成预设, 与"要不要补齐"是两件事。
+   */
+  jigExceptionsPresetVersion: number
+
   /** JIG 状态配置 */
   jigStatusColumn: string
   jigStatusActiveValue: string
 
   /** 业务关键字 */
   keywordTotal: string
+
+  /**
+   * 界面主题。'system' 表示跟随 Windows 深浅色设置。
+   *
+   * 之前主题是纯 CSS 媒体查询决定的, 而 tauri.conf.json 的
+   * theme:"Light" 把它钉死了, 等于没有切换能力。现在这个字段是
+   * 唯一入口, 由 theme.ts 应用到 <html data-theme>。
+   */
+  theme: ThemeMode
 
   /** 尺寸验证配置 */
   sizeValidationEnabled: boolean
@@ -183,10 +219,30 @@ export function createDefaultConfig(): AppConfig {
       '262',
     ],
 
+    /*
+     * 出厂预设: 车间提供的 78 台治具 (252×7 / 256×51 / 262×20),
+     * 型号本身能做 65/55, 但这些具体治具做不到。清单见 jigExceptionPresets.ts。
+     *
+     * 不是空表 —— 空表意味着"没有例外", 而这 78 台确实存在, 让用户对着
+     * Excel 手敲 78 个 12 位编号既费时又容易敲错一位。
+     */
+    jigExceptions: createPresetExceptions(),
+    jigExceptionsPresetVersion: JIG_EXCEPTION_PRESET_VERSION,
+
     jigStatusColumn: 'Jig状态',
     jigStatusActiveValue: 'INPRODUCTION',
 
     keywordTotal: '总计',
+
+    /*
+     * 默认浅色, 不用 'system'。
+     *
+     * 升级前所有用户的窗口都是浅色 (被 tauri.conf.json 的 theme:"Light"
+     * 钉死)。若这里改成 'system', 深色系统的人一升级就会看到界面突然
+     * 变黑 —— 车间工具的场景里, 这种"自己变了"比"多一个可选项"更让人
+     * 困惑。要深色自己切, 默认值只负责不惊动人。
+     */
+    theme: 'light',
 
     sizeValidationEnabled: false,
     pnExtractStart: 6,
@@ -258,8 +314,57 @@ export function mergeConfig(
       continue
     }
 
+    /*
+     * 例外对象表: 逐条清洗, 丢弃结构不合法的项。
+     *
+     * 这份配置由面板写入, 但磁盘文件可能被手工编辑、也可能被将来的旧版本
+     * 写坏。只要有一项缺 jigId, 建索引时 e.jigId.trim() 就会抛 TypeError,
+     * 而且是在渲染阶段抛 —— 整个界面白屏, 报错还指不到配置里的那一行。
+     *
+     * 不能简单地"类型对了就整体赋值": Array.isArray 只能保证外层是数组,
+     * 元素可能是 null、字符串、缺字段的对象。所以逐项过一遍。
+     */
+    if (key === 'jigExceptions' && Array.isArray(v)) {
+      base.jigExceptions = normalizeJigExceptions(v)
+      continue
+    }
+
+    /*
+     * 主题取值有白名单。
+     *
+     * 通用分支只校验 typeof 是 string, 磁盘里写个 "darkk" 或 "深色"
+     * 也会被原样收下, 然后 resolveTheme 落到兜底分支当成 system ——
+     * 用户明明选了深色却跟随了系统, 而配置文件里看着是对的, 无从排查。
+     * 非法值直接退回默认, 让配置自我修复。
+     */
+    if (key === 'theme') {
+      base.theme = isThemeMode(v) ? v : base.theme
+      continue
+    }
+
     ;(base as unknown as Record<string, unknown>)[key] = v
   }
+
+  /*
+   * 例外表: 出厂预设只补一次。
+   *
+   * 磁盘里没有 jigExceptionsPresetVersion 字段, 说明这份配置写于预设上线
+   * 之前 —— 那时默认值还是空表, 用户要么没录、要么手敲了几条。补一次预设,
+   * 但**磁盘已有的记录优先**(按 jigId 去重), 用户手录的内容不会被覆盖。
+   *
+   * 一旦磁盘有了这个字段就完全以磁盘为准: 用户删掉的条目必须真的消失,
+   * 否则每次启动都会复活, 而这个面板没有撤销。
+   *
+   * 注意这里不能只判断"表是否为空": 用户主动清空(想表达"没有例外")与
+   * "还没录过"在结构上完全一样, 只有版本号能把两者分开。
+   */
+  const presetVersionRaw =
+    stored.jigExceptionsPresetVersion ?? stored['jig_exceptions_preset_version']
+  const presetVersion = typeof presetVersionRaw === 'number' ? presetVersionRaw : 0
+  if (presetVersion < JIG_EXCEPTION_PRESET_VERSION) {
+    base.jigExceptions = mergePresetExceptions(base.jigExceptions)
+  }
+  base.jigExceptionsPresetVersion = JIG_EXCEPTION_PRESET_VERSION
 
   /*
    * 排列顺序要对齐映射表的实际内容, 否则面板打开就是空的或多出幽灵行:
@@ -323,6 +428,35 @@ function toSnakeCase(s: string): string {
 /** 排除数组与 null: JSON.parse 出来的东西不该是这些 */
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * 把磁盘上的例外表清洗成可用结构。
+ *
+ * 只保留"有 JIG ID"的项 —— 没有编号的记录既不能参与判定, 也没法在面板里
+ * 呈现。pn / type 缺失时补空串而不丢弃: 这样面板能把它显示出来让用户补全,
+ * 比悄悄吞掉一条更容易发现问题。
+ *
+ * 同时兼容 snake_case 键名, 与 mergeConfig 的整体策略保持一致。
+ */
+function normalizeJigExceptions(raw: ReadonlyArray<unknown>): JigException[] {
+  const out: JigException[] = []
+  for (const item of raw) {
+    if (!isPlainObject(item)) continue
+    const id = item.jigId ?? item.jig_id
+    if (typeof id !== 'string') continue
+    const jigId = id.trim()
+    if (!jigId) continue
+
+    const pn = item.pn
+    const type = item.type
+    out.push({
+      jigId,
+      pn: typeof pn === 'string' ? pn.trim() : '',
+      type: typeof type === 'string' ? type.trim() : '',
+    })
+  }
+  return out
 }
 
 /** 覆盖式更新运行时配置 */

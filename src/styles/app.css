@@ -13,6 +13,15 @@ body,
   margin: 0;
 }
 
+/*
+ * html 也要上底色, 不能只靠 body。
+ * 首帧渲染到 body 之前是 html 的 canvas 在显示, 深色模式下那里若是默认
+ * 白底, 启动瞬间会闪一下。color-scheme 能兜住一部分, 但显式给值更稳。
+ */
+html {
+  background: var(--board);
+}
+
 body {
   font-family: var(--font-ui);
   font-size: 13px;
@@ -191,13 +200,13 @@ textarea {
 .btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn--primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn--ghost {
@@ -700,7 +709,14 @@ textarea {
 .toolbar {
   display: flex;
   align-items: center;
+  /*
+   * 允许换行: 审查页的工具条里有 P/N 下拉 + 三档分段按钮, 窗口拉窄时
+   * 挤在一行会溢出。换行后第二行从左边重新排, 不至于把按钮压没。
+   * 其他页的工具条元素少, 永远不会走到这一条。
+   */
+  flex-wrap: wrap;
   gap: 10px;
+  row-gap: 8px;
   min-height: 28px;
 }
 
@@ -809,6 +825,64 @@ textarea {
 .switch input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ---- 审查分档: 分段按钮 (工具条内, 与顶部标签页区分开) ---- */
+
+.scope {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.scope__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms, color 120ms;
+}
+
+.scope__btn:first-child {
+  border-left: 0;
+}
+
+.scope__btn:hover {
+  background: var(--band);
+}
+
+.scope__btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.scope__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 计数用等宽数字: 三档的行数并排显示时不会因字宽不同而抖动 */
+.scope__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.scope__btn[aria-pressed='true'] .scope__count {
+  color: var(--ink-2);
 }
 
 /* ============ 底部操作条 ============ */
@@ -959,19 +1033,15 @@ textarea {
   width: min(820px, 100%);
 }
 
-.dialog__note code {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  padding: 1px 4px;
-  background: var(--band);
-  border-radius: var(--radius-sm);
-}
-
 /*
  * 表头与每一行共用同一套列宽, 靠 grid 而非 table:
  * 行里有输入框和错误提示, grid 换行比 table 的 rowspan 干净。
+ *
+ * margin-top 补的是"说明段落已删除"之后的间距 —— 两个面板现在都是
+ * 标题直接接表格, 标题自身的 4px 下边距会让表头顶到标题上。
  */
 .map {
+  margin-top: 12px;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   overflow: hidden;
@@ -1173,6 +1243,255 @@ textarea {
   font-size: 11.5px;
   color: var(--signal);
 }
+
+/* ============ 例外对象面板 ============ */
+
+/*
+ * 比型号尺寸匹配面板还要宽一档。
+ * 一行里要同时放治具编号、型号、尺寸串、P/N、类型五组信息, 820px 下
+ * 尺寸串必然折行 —— 而这一列恰恰是要和右侧的类型对照着看的。
+ */
+.dialog--xwide {
+  width: min(940px, 100%);
+}
+
+/* margin-top 同 .map: 说明段落已删, 标题直接接表格需要的呼吸 */
+.exc {
+  margin-top: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.exc__head,
+.exc__row {
+  display: grid;
+  /*
+   * 列宽是按最长内容定的, 不是凭感觉分的:
+   *   JIG ID   12 位等宽 12px ≈ 86px, 加 16px 内边距 -> 140px 有富余
+   *   型号     单值型号(252 / 420A)很窄, 但要放得下「不存在」三个字
+   *   对应尺寸 最长 '65/55_77/27_77/42_77/48_83/48' 共 30 字符 ≈ 216px,
+   *            留 1fr 让它吃掉剩余空间, 宁可宽一点也不能折行/截断 ——
+   *            这一列正是要和右边类型对照着看的
+   *   例外 P/N 只放 4 位尺寸码(如 6555), 加下拉箭头后 96px 足够;
+   *            原来是 136px, 那是按完整 P/N 宽度留的, 现在可以还回去
+   *   例外类型 换成 select 后要放得下「选择类型」与「自定义…」, 给了 136px
+   */
+  grid-template-columns: 22px 140px 96px minmax(0, 1fr) 96px 136px 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.exc__head {
+  height: 28px;
+  background: var(--board);
+  border-bottom: 1px solid var(--rule);
+}
+
+.exc__col {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+}
+
+/* 表体限高: 条数多时面板不顶穿视口, 且表头始终可见 */
+.exc__body {
+  max-height: 44vh;
+  overflow: auto;
+}
+
+.exc__row {
+  min-height: 34px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.exc__row:last-child {
+  border-bottom: 0;
+}
+
+/* 隔行淡底, 长列表横向扫读不串行 */
+.exc__row:nth-child(even) {
+  background: var(--band);
+}
+
+.exc__row:focus-within {
+  background: var(--accent-soft);
+}
+
+.exc__idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.exc__input {
+  height: 26px;
+  min-width: 0;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.exc__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.exc__input[data-invalid='true'] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+/*
+ * 例外 P/N 与例外类型改用 select, 复用审查页 P/N 筛选那套观感
+ * (.select 提供高度/箭头/边框), 这里只补本面板需要的覆盖。
+ *
+ * 之前是 input + datalist: 展开层由浏览器绘制, 样式完全不受控
+ * (白底巨大浮层、盖住整张表), 和面板其余部分格格不入。
+ */
+.exc__select {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 22px 0 7px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background-position: right 6px center;
+  border-color: var(--rule);
+  text-overflow: ellipsis;
+}
+
+.exc__select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.exc__select[data-invalid='true'] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+/* 类型是中文文案, 用界面字体更好读 */
+.exc__select--type {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+
+/* 自定义类型: input 吃掉剩余宽度, 右侧留一个改回预设的小按钮 */
+.exc__custom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.exc__custom .exc__input {
+  flex: 1 1 auto;
+}
+
+.exc__revert {
+  flex: none;
+  width: 20px;
+  height: 26px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.exc__revert:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+/*
+ * 派生列 (型号 / 对应尺寸): 由源数据与映射表算出来, 不可编辑。
+ * 刻意不做成灰色禁用输入框 —— 那太像"可以点但被锁住了"; 用无边界的
+ * 文字更接近它本来的身份: 一行结果的注脚。
+ */
+.exc__ro {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 型号是业务标识而非编码, 用界面字体更好读 */
+.exc__ro[data-state='model'] {
+  font-family: var(--font-ui);
+}
+
+/*
+ * 三种状态必须一眼分得开。最关键的是"待加载"与"不存在"不能混:
+ * 用户没打开源文件时看到满屏"JIG ID 不存在", 会以为名单全错了。
+ */
+.exc__ro[data-state='pending'] {
+  color: var(--ink-3);
+}
+
+.exc__ro[data-state='missing'] {
+  color: var(--signal);
+}
+
+.exc__ro[data-state='mapped'] {
+  color: var(--ink);
+}
+
+.exc__err {
+  grid-column: 2 / -1;
+  padding-bottom: 3px;
+  font-size: 11px;
+  color: var(--signal);
+}
+
+.exc__empty {
+  margin: 0;
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/*
+ * 未加载源数据时的状态行。
+ *
+ * 中性灰, 不用 --signal 红 —— 这不是错误, 只是「暂时算不出派生列」。
+ * 用红色会把用户吓一跳, 以为录入有问题。
+ */
+.exc__hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* 删除按钮沿用映射面板的做法: 静止时中性, 悬停才转红 */
+.exc__row .btn--danger {
+  color: var(--ink-3);
+}
+
+.exc__row .btn--danger:hover:not(:disabled) {
+  color: var(--signal);
+}
+
+/* 底部工具条与映射面板共用同一套布局类 (map__foot / map__spacer 等) 以保持视觉一致 */
 
 /* ============ 提示条 ============ */
 

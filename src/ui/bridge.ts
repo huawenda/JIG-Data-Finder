@@ -187,3 +187,20 @@ export async function writeConfigFile(data: object): Promise<void> {
   const json = JSON.stringify(snake, null, 2)
   await fsWriteFile(await configPath(), new TextEncoder().encode(json))
 }
+/**
+ * 同步窗口标题栏配色。
+ *
+ * 窗口是 decorations:true (系统绘制标题栏), 它只认 Tauri 的 window theme,
+ * 不认我们的 CSS。不同步的话, 深色界面会顶着一个浅色标题栏, 割裂感很重。
+ *
+ * 浏览器里是空操作 —— npm run dev 时没有窗口可管。
+ */
+export async function setWindowTheme(theme: 'light' | 'dark'): Promise<void> {
+  if (!IS_TAURI) return
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().setTheme(theme)
+  } catch {
+    /* 个别平台不支持设置标题栏主题, 静默降级 —— 内容区仍然正确 */
+  }
+}

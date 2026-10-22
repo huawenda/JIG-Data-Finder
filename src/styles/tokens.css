@@ -14,6 +14,19 @@
  */
 
 :root {
+  /*
+   * 主题由 <html data-theme="light|dark"> 决定, 不再用 prefers-color-scheme。
+   *
+   * 背景: tauri.conf.json 里 theme:"Light" 把 WebView2 的
+   * prefers-color-scheme 钉死成 light, 所以基于媒体查询的深色块
+   * 在真实窗口里永远不生效。现在改由 src/core/theme.ts 写属性,
+   * 'system' 模式在 JS 里解析成 light/dark 再落属性 —— CSS 只认结果,
+   * 深色令牌只需写一遍。
+   *
+   * 未设属性时的兜底就是浅色, 与配置默认值一致。
+   */
+  color-scheme: light;
+
   /* ---- 墨色 (冷调近黑, 非纯黑) ---- */
   --ink: #16191d;
   --ink-2: #5b6472;
@@ -31,6 +44,10 @@
   --accent-hover: #0a4a50;
   --accent-soft: #e3f0f0;
   --accent-ring: rgba(13, 92, 99, 0.32);
+
+  /* 强调色底上的文字。浅色模式下深绿底配白字足够, 深色模式把强调色
+     提亮到 #3fa8a4 之后, 白字对比度只剩 2.2:1 —— 改用深墨色才读得清。 */
+  --on-accent: #ffffff;
 
   /* ---- 设备信号色 ---- */
   --signal: #c22a1f; /* 尺寸不匹配 — 信号灯红 */
@@ -55,23 +72,30 @@
   --radius: 5px;
 }
 
-@media (prefers-color-scheme: dark) {
-  /* 深色跟随系统: 仅翻转表面与墨色, 保留强调色与信号色的辨识度 */
-  :root {
-    --ink: #e6e9ee;
-    --ink-2: #a3abb8;
-    --ink-3: #6f7889;
-    --rule: #2b3038;
-    --rule-strong: #3b424d;
-    --board: #14171b;
-    --surface: #1b1f25;
-    --band: #232830;
-    --accent: #3fa8a4;
-    --accent-hover: #55bfbb;
-    --accent-soft: #14312f;
-    --signal: #ef5c4d;
-    --signal-soft: #33191a;
-    --lamp: #d97706;
-    --ok: #34a96b;
-  }
+/*
+ * 深色: 仅翻转表面与墨色, 保留强调色与信号色的辨识度。
+ *
+ * 注意这里补齐了浅色块里所有会随背景翻转的令牌 —— 尤其是 --accent-ring,
+ * 原先漏了它, 深色下焦点环仍用浅色的深绿 rgba, 贴在暗底上几乎看不见。
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink: #e6e9ee;
+  --ink-2: #a3abb8;
+  --ink-3: #6f7889;
+  --rule: #2b3038;
+  --rule-strong: #3b424d;
+  --board: #14171b;
+  --surface: #1b1f25;
+  --band: #232830;
+  --accent: #3fa8a4;
+  --accent-hover: #55bfbb;
+  --accent-soft: #14312f;
+  --accent-ring: rgba(63, 168, 164, 0.42);
+  --on-accent: #0c1a1a;
+  --signal: #ef5c4d;
+  --signal-soft: #33191a;
+  --lamp: #d97706;
+  --ok: #34a96b;
 }

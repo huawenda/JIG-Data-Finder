@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AppConfig } from '../core/config'
+import type { ThemeMode } from '../core/theme'
+import { THEME_OPTIONS, prefersDark, themeLabel } from '../core/theme'
 
 export interface SettingsDraft {
   defaultFileDialogPath: string
@@ -11,6 +13,7 @@ export interface SettingsDraft {
   closeToTray: boolean
   trayEnabled: boolean
   exportTimestampEnabled: boolean
+  theme: ThemeMode
 }
 
 export interface SettingsDialogProps {
@@ -20,6 +23,14 @@ export interface SettingsDialogProps {
   onClose: () => void
   /** 交由宿主层打开目录选择框 */
   pickDirectory: (current: string) => Promise<string | null>
+  /**
+   * 主题即时预览。
+   *
+   * 选主题必须当场看到效果 —— 否则用户点了"深色", 界面纹丝不动,
+   * 根本无从判断。所以这个回调不走"保存"流程, 而是每次选择立刻应用;
+   * 关闭面板时由本组件调回 initial 的值还原。
+   */
+  onThemePreview: (mode: ThemeMode) => void
 }
 
 export default function SettingsDialog({
@@ -28,18 +39,48 @@ export default function SettingsDialog({
   onSave,
   onClose,
   pickDirectory,
+  onThemePreview,
 }: SettingsDialogProps) {
   const [d, setD] = useState<SettingsDraft>(initial)
 
   const patch = (p: Partial<SettingsDraft>) => setD((prev) => ({ ...prev, ...p }))
 
+  /*
+   * 关闭前把预览过的主题还原。
+   *
+   * 点取消 / 点遮罩 / 按 ESC 三条路都得还原 —— 少还原一条, 用户就会
+   * 带着一个"没保存却生效了"的颜色退出, 下次启动又变回去, 像配置损坏。
+   */
+  const closeWithoutSave = () => {
+    if (d.theme !== initial.theme) onThemePreview(initial.theme)
+    onClose()
+  }
+
+  /*
+   * ESC 关闭。故意不写依赖数组: closeWithoutSave 读的是当前 d.theme,
+   * 若只在挂载时绑定, 闭包里会一直是初始值, 还原就还原错了。
+   * 设置面板的渲染频率极低, 每次重挂监听没有实际代价。
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeWithoutSave()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   return (
     <div
       className="scrim"
       role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+      /*
+       * 点遮罩空白处不关闭 —— 只有「取消」按钮和 Esc 能关。
+       *
+       * 这些面板里做的都是录入工作: 例外对象逐行敲编号、型号尺寸逐一配对。
+       * 鼠标从面板里移到外面一点, 或者在面板边缘附近想点下拉却落空, 一次
+       * 误触就会把刚敲的十几行连同未保存的改动一起丢掉, 而且没有任何确认。
+       * 关闭动作只留给明确意图的按钮和 Esc 键, 代价只是多点一下。
+       */
     >
       <div
         className="dialog"
@@ -97,6 +138,33 @@ export default function SettingsDialog({
 
           <fieldset className="fieldset">
             <legend className="fieldset__legend">界面</legend>
+
+            <div className="field">
+              <label className="field__label" htmlFor="set-theme">
+                主题
+              </label>
+              <div className="field__control">
+                <select
+                  id="set-theme"
+                  className="select"
+                  value={d.theme}
+                  onChange={(e) => {
+                    const mode = e.target.value as ThemeMode
+                    patch({ theme: mode })
+                    onThemePreview(mode)
+                  }}
+                >
+                  {THEME_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="field__label">
+                  {themeLabel(d.theme, prefersDark())}
+                </span>
+              </div>
+            </div>
 
             <div className="field">
               <label className="field__label" htmlFor="set-rowh">
@@ -246,7 +314,7 @@ export default function SettingsDialog({
         </div>
 
         <div className="dialog__foot">
-          <button className="btn" type="button" onClick={onClose}>
+          <button className="btn" type="button" onClick={closeWithoutSave}>
             取消
           </button>
           <button

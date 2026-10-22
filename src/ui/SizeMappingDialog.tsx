@@ -101,13 +101,24 @@ export default function SizeMappingDialog({
     setPairs(orderedPairs(d.jigSizeMapping, d.jigSizeMappingOrder))
   }
 
+  // ESC 关闭。与遮罩点击是同一套退路的两种入口。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div
       className="scrim"
       role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+      /*
+       * 点遮罩空白处不关闭, 只有「取消」和 Esc 能关。
+       * 型号尺寸映射是逐行录入的活儿, 误触空白就会把没保存的配对全丢掉。
+       * 与设置、例外对象两个面板保持同一套关闭规则。
+       */
     >
       <div
         className="dialog dialog--wide"
@@ -119,12 +130,6 @@ export default function SizeMappingDialog({
           <h2 className="dialog__title" id="map-title">
             型号尺寸匹配
           </h2>
-          <p className="dialog__note">
-            左侧型号取自 Excel 的「Jig 对应型号」列第一个词, 右侧是它对应的尺寸串。
-            尺寸串为 <code>All Size</code> 时恒判为匹配(不标红); 留空表示该型号不做尺寸校验。
-            拖动行首的 ⠿ 可调整顺序, 也可用行内的 ↑↓, 顺序会按此保存。
-          </p>
-
           <div className="map">
             <div className="map__head">
               <span className="map__col map__col--grip" />
