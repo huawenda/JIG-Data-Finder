@@ -264,7 +264,7 @@ export default function App() {
 
   // ---- 智能粘贴 ----
   /**
-   * 智能粘贴: 对应旧版 tools/legacy/src/ui/jig_id_text_edit.py 的双通道处理。
+   * 智能粘贴: 源自 v1.x jig_id_text_edit.py 的双通道处理。
    *
    * 关键点 1: 必须用系统级剪贴板读取, 不能用 navigator.clipboard。
    *   WebView2 里 navigator.clipboard.readText 在 onPaste 中基本必被拒绝,
@@ -391,7 +391,7 @@ export default function App() {
     const currentPivot = pivotScope === 'all' ? pivotAll : pivotProd
 
     // 尺寸不匹配的红色标记只在查询页和审查页写入,
-    // 对应旧版 tools/legacy/src/ui/main_window.py 里 apply_style 的判定条件。
+    // 沿用 v1.x main_window.py 里 apply_style 的判定条件。
     const targets: Record<TabId, { table: Table; name: string; red?: RedMark } | null> = {
       detail: detail.rows.length
         ? { table: detail, name: '查询结果', red: { rows: detailFlags, column: '对应尺寸' } }

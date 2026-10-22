@@ -1,49 +1,19 @@
 /**
- * 尺寸验证算法 —— 基线一致性测试
+ * 尺寸验证算法 —— 匹配规则测试
  *
- * 直接读取 Python 版生成的 tests/fixtures/expected.json,
- * 断言 TypeScript 实现给出完全相同的结果。
+ * 判定模型: P/N 第 7..10 位是 4 位尺寸码, 尺寸串里每个互斥组
+ * (按 `_` 分隔) 去掉非数字字符后也是 4 位码, 两者全等才算匹配。
+ * 例: P/N "6073J-6555F" 提取 "6555" == 尺寸串 "65/55" 的编码。
  *
  * 运行: npm test
  */
 
 import { describe, it, expect } from 'vitest'
-import baseline from './fixtures/expected.json'
 import { createDefaultConfig } from '../src/core/config'
 import { validateSizeMatch, rulesFromConfig } from '../src/core/validate'
 
 const config = createDefaultConfig()
 const rules = rulesFromConfig(config)
-
-describe('尺寸验证 —— 对齐 Python 基线', () => {
-  const cases = baseline.size_validation as ReadonlyArray<{
-    pn: string
-    size: string
-    match: boolean
-  }>
-
-  it('基线快照非空', () => {
-    expect(cases.length).toBeGreaterThan(0)
-  })
-
-  it('逐行匹配 Python 结果', () => {
-    const mismatches: string[] = []
-    for (const c of cases) {
-      const actual = validateSizeMatch(c.pn, c.size, rules)
-      if (actual !== c.match) {
-        mismatches.push(
-          `pn="${c.pn}" size="${c.size}" 期望=${c.match} 实际=${actual}`,
-        )
-      }
-    }
-    expect(mismatches).toEqual([])
-  })
-
-  it('基线中确实存在非空尺寸, 避免"全空即全匹配"的假阳性', () => {
-    const nonEmpty = cases.filter((c) => c.size !== '')
-    expect(nonEmpty.length).toBeGreaterThan(0)
-  })
-})
 
 describe('尺寸验证 —— 规则边界', () => {
   it('All Size 恒匹配', () => {
@@ -60,32 +30,61 @@ describe('尺寸验证 —— 规则边界', () => {
     expect(validateSizeMatch('ABC', '77/48', rules)).toBe(true)
   })
 
-  it('4 位数字拆分匹配: 7748 -> 77/48', () => {
-    expect(validateSizeMatch('XXXX7748XXXX', '77/48', rules)).toBe(true)
+  // ---------------------------------------------------------------------
+  // 以下用例的 P/N 串必须是 6 个前导字符 + 4 位数字。
+  //
+  // 曾经的写法是 "XXXX7748XXXX" (4 个 X), 但 pnExtractStart=6 意味着
+  // 提取的是下标 6..9 —— 那串的真实提取段是 "48XX" 而不是 "7748"。
+  // 它当年能通过, 是因为旧规则 8 的"任意连续 2 位子串"在尺寸串里
+  // 找到了 "48" 才判匹配, 属于蒙对。严格匹配下这类串会判不匹配,
+  // 所以这里改用真实 P/N 格式, 让用例名与实际断的东西一致。
+  // ---------------------------------------------------------------------
+  it('严格 4 位匹配: 7748 命中规格 77/48', () => {
+    expect(validateSizeMatch('XXXXXX7748', '77/48', rules)).toBe(true)
+    expect(validateSizeMatch('6073J-7748K', '77/48', rules)).toBe(true)
   })
 
-  it('65 命中: P/N 第7-8位为 65 且尺寸含 65 即匹配', () => {
-    // slice(6,10) = '65XX', 兜底规则命中尺寸中的 '65'
-    expect(validateSizeMatch('XXXXXX65XX', '65', rules)).toBe(true)
-    expect(validateSizeMatch('XXXXXX65XX', '65/55', rules)).toBe(true)
+  it('严格 4 位匹配: 65/55 等价于 P/N 的 6555', () => {
+    expect(validateSizeMatch('XXXXXX6555', '65/55', rules)).toBe(true)
+    expect(validateSizeMatch('6073J-6555F', '65/55', rules)).toBe(true)
   })
 
-  it('当前默认配置下"65"特判为死代码, 仅在提取长度为2时生效', () => {
-    // 提取长度 2: slice(6,8) = '65', 命中规则6 特判
-    const twoDigitRules = { ...rules, pnExtractLength: 2 }
-    expect(validateSizeMatch('XXXXXX65', '65/48', twoDigitRules)).toBe(true)
+  it('分隔符不同的同一规格视为不匹配: 65XX 不是 65/55', () => {
+    // 提取段是 "65XX", 与规格码 "6555" 不同 -> 不匹配
+    expect(validateSizeMatch('XXXXXX65XX', '65/55', rules)).toBe(false)
+  })
 
-    // 提取长度 4: slice(6,10) = '65X9', 不再等于 '65', 特判不生效
-    expect(validateSizeMatch('XXXXXX65X9', '65/48', rules)).toBe(true) // 兜底规则仍命中 '65'
+  it('互斥组按组拆分, 不会跨组拼出假规格', () => {
+    // 整串去分隔符会得到 "77488348" 里的 "7488",
+    // 按组拆则只有 7748 与 8348 两个真规格
+    expect(validateSizeMatch('XXXXXX7748', '77/48_83/48', rules)).toBe(true)
+    expect(validateSizeMatch('XXXXXX8348', '77/48_83/48', rules)).toBe(true)
+    expect(validateSizeMatch('XXXXXX7488', '77/48_83/48', rules)).toBe(false)
+  })
+
+  it('子串不再算匹配: 7727 不在 77/48_83/48 的规格里', () => {
+    // 旧规则 8 会因 "77" 子串存在而误判为匹配
+    expect(validateSizeMatch('XXXXXX7727', '77/48_83/48', rules)).toBe(false)
+  })
+
+  it('子串不再算匹配: 7742 不在 430 的规格 65/55_77/48_83/48 里', () => {
+    expect(validateSizeMatch('XXXXXX7742', '65/55_77/48_83/48', rules)).toBe(false)
+    expect(validateSizeMatch('XXXXXX7748', '65/55_77/48_83/48', rules)).toBe(true)
+  })
+
+  it('组内数字不足 4 位时不构成规格, 一律不匹配', () => {
+    // "65" 只有 2 位, 拼不出完整 4 位规格
+    expect(validateSizeMatch('XXXXXX6555', '65', rules)).toBe(false)
   })
 
   it('不匹配时返回 false', () => {
-    // P/N 第7-10位 = 1234, 尺寸 77/48 中既无 1234 也无 12/34
-    expect(validateSizeMatch('XXXX1234XXXX', '77/48', rules)).toBe(false)
+    expect(validateSizeMatch('XXXXXX1234', '77/48', rules)).toBe(false)
   })
 
-  it('兜底规则: 任意连续 2 位子串命中即匹配', () => {
-    // 提取 1234, 尺寸含 "34" => 命中
-    expect(validateSizeMatch('XXXX1234XXXX', '9/34', rules)).toBe(true)
+  it('提取长度非 4 时保守判为不匹配', () => {
+    // 规格码固定 4 位, 提取长度改成 2 就无法全等比较。
+    // 宁可标红提示人工确认, 也不放行可能装错的治具。
+    const twoDigitRules = { ...rules, pnExtractLength: 2 }
+    expect(validateSizeMatch('XXXXXX65', '65/48', twoDigitRules)).toBe(false)
   })
 })

@@ -139,7 +139,7 @@ export async function readClipboardText(): Promise<string | null> {
 /**
  * 配置目录: %APPDATA%\JIG Data Finder
  *
- * 与旧版 Python 版 (tools/legacy/src/app/config.py get_config_dir) 完全一致, 便于平滑升级:
+ * 与 v1.x 的 get_config_dir 完全一致, 便于平滑升级:
  * 新版首次启动能直接读到旧版留下的设置。
  *
  * 路径由 Rust 侧的 legacy_config_dir 命令给出, 前端不猜环境变量 ——

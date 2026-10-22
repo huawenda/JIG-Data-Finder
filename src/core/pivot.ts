@@ -1,12 +1,12 @@
 /**
- * 透视表生成 —— 对应 Python 版 tools/legacy/src/core/worker.py 的 _generate_pivot
+ * 透视表生成 —— 逻辑源自 v1.x worker.py 的 _generate_pivot
  *
  * 输出的视觉约定 (UI 依赖这些关键词, 不能改):
  *   - P/N 小计行: CST ID = "--",  UI 据此加粗 + 浅蓝底
  *   - 全表总计行: P/N = "总计",    UI 据此加粗 + 浅绿底
  *   - 计数为 0 时写成空字符串, 保持表格清爽
  *
- * 处理顺序与 Python 完全一致, 任何调换都会导致基线比对失败:
+ * 处理顺序不可调换 —— 调换会让计数归到错误的行上:
  *   1. Lot ID 回填空 CST ID
  *   2. 生产中筛选 (工程 == productionIndicatorCode 的 P/N)
  *   3. 排除 pivotExcludeNames 黑名单工程

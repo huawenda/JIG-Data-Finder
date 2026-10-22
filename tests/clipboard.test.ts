@@ -1,37 +1,58 @@
 /**
- * 剪贴板处理 —— 基线一致性测试
+ * 剪贴板处理 —— 清洗规则测试
+ *
+ * 早期这里的用例集来自 Python 基线快照。基线移除后改成内联常量:
+ * 数据本来就是 5 条真实粘贴样本, 放在这里比放在外部 JSON 更直白 ——
+ * 改断言时不用跨文件跳转, 失败时也能直接看出是哪一条样本挂了。
  */
 
 import { describe, it, expect } from 'vitest'
-import baseline from './fixtures/expected.json'
 import {
   processClipboardContent,
   extractJigIds,
   isPureJigIds,
 } from '../src/core/clipboard'
 
-describe('剪贴板 —— 对齐 Python 基线', () => {
-  const cases = baseline.clipboard as ReadonlyArray<{
-    input: string
-    output: string
-  }>
+/**
+ * 真实使用中出现的粘贴形态 -> 期望的清洗结果。
+ *
+ * 注意第 1、3 条输出与输入完全相同: 纯净列表不做任何加工,
+ * 连重复行都原样保留 —— 去重是查询阶段的事, 不在清洗阶段做。
+ */
+const PASTE_SAMPLES: ReadonlyArray<{ input: string; output: string; note: string }> = [
+  {
+    input: 'CJJ349000910\nCJJ349000919',
+    output: 'CJJ349000910\nCJJ349000919',
+    note: '纯净列表原样保留',
+  },
+  {
+    input: '请查一下这些: CJJ349000910 和 C4M123456789, 谢谢',
+    output: 'CJJ349000910\nC4M123456789',
+    note: '从中文句子里抽出 ID, 每行一个',
+  },
+  {
+    input: 'CJJ349000910\nCJJ349000910\nCJJ349000919',
+    output: 'CJJ349000910\nCJJ349000910\nCJJ349000919',
+    note: '纯净列表不去重',
+  },
+  {
+    input: '这里没有任何ID',
+    output: '这里没有任何ID',
+    note: '抽不到 ID 时原样返回, 不返回空串',
+  },
+  {
+    input: '',
+    output: '',
+    note: '空文本返回空',
+  },
+]
 
-  it('基线用例非空', () => {
-    expect(cases.length).toBeGreaterThan(0)
-  })
-
-  it('逐例匹配 Python 结果', () => {
-    const mismatches: string[] = []
-    for (const c of cases) {
-      const actual = processClipboardContent(c.input)
-      if (actual !== c.output) {
-        mismatches.push(
-          `in=${JSON.stringify(c.input)} 期望=${JSON.stringify(c.output)} 实际=${JSON.stringify(actual)}`,
-        )
-      }
-    }
-    expect(mismatches).toEqual([])
-  })
+describe('剪贴板 —— 真实粘贴样本', () => {
+  for (const sample of PASTE_SAMPLES) {
+    it(sample.note, () => {
+      expect(processClipboardContent(sample.input)).toBe(sample.output)
+    })
+  }
 })
 
 describe('剪贴板 —— 提取规则', () => {

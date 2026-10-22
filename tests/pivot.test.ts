@@ -1,39 +1,21 @@
 /**
- * 透视表生成 —— 基线一致性测试
+ * 透视表生成 —— 结构与数值测试
  *
- * 直接拿 tests/fixtures/expected.json 里 Python 版生成的透视表逐格比对。
- * 为了不依赖 xlsx 解析, 这里从基线的 size_validation 无法重建源数据,
- * 因此改为验证"结构不变量": 列序、行数、小计/总计行的数值一致性。
+ * 全部用自造小样本驱动, 不依赖任何外部快照文件。
+ * 样本刻意覆盖了透视表的四个易错点:
+ *   1. 同一 P/N 的多个 Jig 要汇总成小计行
+ *   2. CST ID 为空时由 Lot ID 回填
+ *   3. 某 CST 没有的工序必须写空串, 不能写 0
+ *   4. 末行是全表总计, P/N 固定为 "总计"
  */
 
 import { describe, it, expect } from 'vitest'
-import baseline from './fixtures/expected.json'
 import { createDefaultConfig } from '../src/core/config'
 import { generatePivot, SUMMARY_CST } from '../src/core/pivot'
-import type { Row, Table } from '../src/core/table'
+import type { Row } from '../src/core/table'
 
 const config = createDefaultConfig()
 
-/** 基线里的透视表 -> Table */
-function baselinePivot(key: 'pivot_all' | 'pivot_prod'): Table {
-  const p = baseline[key] as {
-    columns: string[]
-    rows: string[][]
-    row_count: number
-  }
-  return {
-    columns: p.columns,
-    rows: p.rows.map((cells) => {
-      const row: Row = {}
-      p.columns.forEach((c, i) => {
-        row[c] = cells[i] ?? ''
-      })
-      return row
-    }),
-  }
-}
-
-/** 用基线透视表反推源数据不可行, 这里构造一个等价的小样本自测 */
 const sampleSource: Row[] = [
   { 'P/N': 'PN-A', 'CST ID': 'CST1', '工程': '8400', '工程名': 'PNP', 'Jig ID': 'J1' },
   { 'P/N': 'PN-A', 'CST ID': 'CST1', '工程': '8400', '工程名': 'PNP', 'Jig ID': 'J2' },
@@ -103,30 +85,5 @@ describe('透视表 —— 生产中筛选', () => {
     const prod = generatePivot(noProd, true, config)
     expect(prod.rows).toHaveLength(0)
     expect(prod.columns).toHaveLength(0)
-  })
-})
-
-describe('透视表 —— 与 Python 基线结构对齐', () => {
-  it('基线透视表列序符合 [P/N, CST ID, 工程列, 总计] 约定', () => {
-    for (const key of ['pivot_all', 'pivot_prod'] as const) {
-      const bp = baselinePivot(key)
-      expect(bp.columns[0]).toBe('P/N')
-      expect(bp.columns[1]).toBe('CST ID')
-      expect(bp.columns[bp.columns.length - 1]).toBe('总计')
-    }
-  })
-
-  it('基线透视表每行都能找到 P/N 小计行和总计行', () => {
-    const bp = baselinePivot('pivot_all')
-    const hasSummary = bp.rows.some((r) => r['CST ID'] === SUMMARY_CST)
-    const hasTotal = bp.rows.some((r) => r['P/N'] === '总计')
-    expect(hasSummary).toBe(true)
-    expect(hasTotal).toBe(true)
-  })
-
-  it('基线透视表行数与快照记录一致', () => {
-    expect(baselinePivot('pivot_all').rows).toHaveLength(
-      (baseline.pivot_all as { row_count: number }).row_count,
-    )
   })
 })

@@ -160,13 +160,18 @@ describe('test-500.xlsx', () => {
       modelByPn.set(String(r['P/N']), String(r['Jig 对应型号']).split(' ')[0])
     }
 
-    // 契约: 这 9 个 P/N 应当标红, 其余 7 个不标红。数值与
+    // 契约: 这 10 个 P/N 应当标红, 其余 6 个不标红。数值与
     // tools/gen-test-xlsx.py 的 PN_MODELS 第三个字段一一对应。
+    //
+    // 6073J-7742H 是本轮从"不标红"翻转为"标红"的: 430 型号的规格是
+    // 65/55、77/48、83/48, 做不了 77宽42高。旧规则 8 的"任意连续2位
+    // 子串"会因 "77" 存在而误判为匹配, 严格 4 位匹配下正确判红。
     //
     // 注意这里仍然直接调用 validateSizeMatch, 不复刻规则。
     const expectRed = new Set([
-      '6073J-7748B', '6072J-7727C', '6073J-7742D', '6072J-8348E',
-      '6073J-3931F', '6072J-7748G', '6073J-6555B', '6072J-6555D', '6073J-6555G',
+      '6073J-7742H', '6073J-7748B', '6072J-7727C', '6073J-7742D',
+      '6072J-8348E', '6073J-3931F', '6072J-7748G', '6073J-6555B',
+      '6072J-6555D', '6073J-6555G',
     ])
 
     for (const [pn, model] of modelByPn) {
@@ -176,7 +181,7 @@ describe('test-500.xlsx', () => {
         expectRed.has(pn) ? 'red' : 'clear',
       )
     }
-    expect(expectRed.size).toBe(9)
+    expect(expectRed.size).toBe(10)
   })
 
   it('多种尺寸映射都被覆盖 —— 不能只有一种', () => {

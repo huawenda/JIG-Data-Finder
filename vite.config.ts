@@ -45,5 +45,17 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    /*
+     * 固定单 fork 跑, 不要改回默认的多 worker。
+     *
+     * 多 worker 并行时 Node 的 compile cache 会被多个进程同时写同一个文件,
+     * 偶发 EPERM 导致个别测试文件**根本没被加载** —— 输出变成
+     * "7 passed" 而不是 8, 但退出码依然是 0, 闸门于是假通过。
+     * 这个坑不报错、不红字, 只少一行, 极难发现。
+     *
+     * 全部 128 个测试单进程跑完 1 秒出头, 确定性远比这点并行收益重要。
+     */
+    pool: 'forks',
+    poolOptions: { forks: { singleFork: true } },
   },
 } as never)

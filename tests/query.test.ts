@@ -1,9 +1,10 @@
 /**
- * 查询与审查数据处理 —— 基线一致性测试
+ * 查询与审查数据处理 —— 行为测试
+ *
+ * 全部用自造源数据驱动, 不依赖外部快照文件。
  */
 
 import { describe, it, expect } from 'vitest'
-import baseline from './fixtures/expected.json'
 import { createDefaultConfig } from '../src/core/config'
 import {
   queryData,
@@ -103,7 +104,7 @@ describe('查询', () => {
   it('生成对应尺寸映射', () => {
     const t = queryData(source, ['CJJ349000910', 'CJJ349000919'], config)
     const byId = new Map(t.rows.map((r) => [r['Jig ID'], r]))
-    expect(byId.get('CJJ349000910')!['对应尺寸']).toBe('65_77/27_77/42_77/48_83/48')
+    expect(byId.get('CJJ349000910')!['对应尺寸']).toBe('65/55_77/27_77/42_77/48_83/48')
     expect(byId.get('CJJ349000919')!['对应尺寸']).toBe('') // A01 不在映射表
   })
 
@@ -146,41 +147,10 @@ describe('审查页数据', () => {
     const t = processSourceData(source, config)
     expect(t.columns).toContain('对应尺寸')
     const row = t.rows.find((r) => r['Jig ID'] === 'CJJ349000910')
-    expect(row!['对应尺寸']).toBe('65_77/27_77/42_77/48_83/48')
+    expect(row!['对应尺寸']).toBe('65/55_77/27_77/42_77/48_83/48')
   })
 
   it('空源数据返回空表', () => {
     expect(processSourceData([], config).rows).toHaveLength(0)
-  })
-})
-
-describe('基线查询结果一致性', () => {
-  it('基线 query 列序与 TS 期望列序一致', () => {
-    const expected = [
-      'P/N',
-      'Lot ID',
-      'CST ID',
-      'Slot No',
-      'Jig ID',
-      '工程名',
-      'Glass判定',
-      'Jig 对应型号',
-      '对应尺寸',
-    ]
-    expect((baseline.query as { detail: { columns: string[] } }).detail.columns).toEqual(
-      expected,
-    )
-  })
-
-  it('基线含未命中占位行, 且该行型号列为空', () => {
-    const detail = (
-      baseline.query_with_missing as {
-        detail: { columns: string[]; rows: string[][] }
-      }
-    ).detail
-    const iModel = detail.columns.indexOf('Jig 对应型号')
-    const missRow = detail.rows.find((r) => r.includes(NOT_FOUND))
-    expect(missRow).toBeDefined()
-    expect(missRow![iModel]).toBe('')
   })
 })

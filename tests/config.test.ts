@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { createDefaultConfig, mergeConfig } from '../src/core/config'
+import { rulesFromConfig, validateSizeMatch } from '../src/core/validate'
 
 describe('配置迁移: 旧版 snake_case 键名', () => {
   /** 真实的旧版 config.json 结构节选 (来自用户机器) */
@@ -147,5 +148,53 @@ describe('配置迁移: 容错', () => {
     const c = mergeConfig({ 完全不存在的字段: 'x', sizeValidationEnabled: true })
     expect(c.sizeValidationEnabled).toBe(true)
     expect('完全不存在的字段' in c).toBe(false)
+  })
+})
+
+describe('尺寸串升级兼容 —— 裸 "65" 归一化', () => {
+  /*
+   * 匹配算法改为严格 4 位全等比较后, 裸 "65" 拼不出 4 位规格码,
+   * 那一组会被整组丢弃, 导致本该匹配的 P/N 被误判为不匹配(标红)。
+   *
+   * 存量用户的 config.json 里就是裸 "65", 必须在加载时自动展开,
+   * 否则升级后他们的表会突然多出一堆标红。
+   */
+
+  it('整串就是裸 65 时展开为 65/55', () => {
+    const c = mergeConfig({ jig_size_mapping: { '184': '65' } })
+    expect(c.jigSizeMapping['184']).toBe('65/55')
+  })
+
+  it('裸 65 作为互斥组时也展开, 其余组保持原样', () => {
+    const c = mergeConfig({ jig_size_mapping: { '252': '65_77/27_77/42_77/48_83/48' } })
+    expect(c.jigSizeMapping['252']).toBe('65/55_77/27_77/42_77/48_83/48')
+  })
+
+  it('已经是 65/55 的不动', () => {
+    const c = mergeConfig({ jig_size_mapping: { '184': '65/55' } })
+    expect(c.jigSizeMapping['184']).toBe('65/55')
+  })
+
+  it('其它形态的 65 不动 —— 那是用户自己的意思', () => {
+    // "65/48" 是另一个规格, "6548" 也不是裸 65
+    const c = mergeConfig({
+      jig_size_mapping: { A: '65/48', B: '6548', C: '65/55' },
+    })
+    expect(c.jigSizeMapping['A']).toBe('65/48')
+    expect(c.jigSizeMapping['B']).toBe('6548')
+    expect(c.jigSizeMapping['C']).toBe('65/55')
+  })
+
+  it('多个裸 65 组都会被展开', () => {
+    // 每组独立判断, 不能只处理第一组
+    const c = mergeConfig({ jig_size_mapping: { D: '65_65' } })
+    expect(c.jigSizeMapping['D']).toBe('65/55_65/55')
+  })
+
+  it('归一化后 65/55 玻璃能正确匹配', () => {
+    const c = mergeConfig({ jig_size_mapping: { '252': '65_77/27_77/42_77/48_83/48' } })
+    const rules = rulesFromConfig(c)
+    // 6555 = 65宽55高, 252 明确能做 65/55 -> 不该标红
+    expect(validateSizeMatch('6073J-6555F', c.jigSizeMapping['252'], rules)).toBe(true)
   })
 })

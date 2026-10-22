@@ -83,3 +83,7 @@ src-tauri/gen/
 # TypeScript 增量编译
 *.tsbuildinfo
 
+# vitest 的临时目录 (沙盒环境下 node-compile-cache 偶发 EPERM,
+# 需把 TMPDIR 指到项目内再用; 目录本身不入库)
+.tmp-vitest/
+

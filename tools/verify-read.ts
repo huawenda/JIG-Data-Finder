@@ -41,7 +41,7 @@ check(
   data.columns.length === 9,
   `实际 ${data.columns.length}: ${data.columns.join(' | ')}`,
 )
-check('列序与基线一致', JSON.stringify(data.columns) === JSON.stringify([
+check('列序符合预期', JSON.stringify(data.columns) === JSON.stringify([
   'P/N', 'Lot ID', 'CST ID', 'Slot No', 'Jig ID',
   'Jig 对应型号', 'Glass判定', '工程', '工程名',
 ]), data.columns.join(' | '))

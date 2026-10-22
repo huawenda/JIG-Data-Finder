@@ -1,5 +1,5 @@
 /**
- * 剪贴板处理 —— 对应 Python 版 tools/legacy/src/utils/clipboard_processor.py
+ * 剪贴板处理 —— 逻辑源自 v1.x 的 clipboard_processor.py
  *
  * 正则语义与 Python 保持一致:
  *   - CJ + 8位字母数字 + 末2位数字且不能是 "00"  (排除 Lot ID)
