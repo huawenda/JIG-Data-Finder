@@ -1,92 +1,76 @@
 /**
- * 数据审查的分档 —— 每行归入「例外 / 尺寸不匹配 / 正常」三者之一。
+ * 数据审查的分类与筛选 —— 每行归入「尺寸匹配 / 不匹配」两态。
  *
- * ## 为什么分档, 而不是"标红 / 不标红"
+ * ## 为什么还要这一层
  *
- * 标红只说明"这一行有问题", 但现场要做的动作截然不同:
+ * 判定规则本身在 `validate.ts`, 这层只做两件很薄的事:
  *
- *   例外        型号能力够, 但**这台具体治具**做不到
- *               -> 治具本身的问题, 报修或换治具
- *   尺寸不匹配  型号能力不够, P/N 要求的规格不在该型号的尺寸串里
- *               -> 派工/选型问题, 换治具型号或改派
+ *   1. **行 -> 分类**: 从 Row 里取 P/N 与「对应尺寸」两列, 交给
+ *      validateSizeMatch, 转成 `ok | mismatch`。调用方(查询结果页、
+ *      审查页、导出)都不必自己拼字段, 也不会各写一份取法。
+ *   2. **分类 -> 筛选**: `isFlagged` 把分类折成布尔(表格标红用),
+ *      `matchesScope` 按视野筛行(审查页两档用)。
  *
- * 混在一个"62 行不匹配"里, 用户还得逐行看「对应尺寸」列有没有 `(65例外)`
- * 后缀才能分辨。分档之后一眼就能看出这堆红字是治具毛病还是派工毛病。
+ * 一开始它是为三档审查(所有对象/尺寸不匹配/仅例外)而建的, 例外功能下线后
+ * 只剩两态 —— 但分层本身仍然成立: 一张表只判一次, 标红与筛选都基于同一份
+ * 结果, 不会出现"表格标红用的是 A 规则、筛选用的是 B 规则"这种错位。
  *
- * ## 三档互斥, 优先级固定
+ * ## 缺列时返回空数组
  *
- * 命中例外就归例外, **哪怕它的尺寸本身也对不上**。这样「仅例外」档看到的
- * 一定是纯治具问题, 不会混进型号能力问题 —— 这是分档的意义所在。
- *
- * 「尺寸不匹配」档包含例外 (用户口径就是"含例外"), 也就是所有标红的行;
- * 「仅例外」是它的子集。
- *
- * ## 与 validateSizeMatch 的分工
- *
- * 尺寸判定仍是 validateSizeMatch 的事, 这里只做**组合与归类**:
- * 先问例外 (治具维度, 优先级高于一切尺寸规则, 包括 All Size 恒匹配),
- * 再问尺寸 (型号维度)。两套规则各自的边界都留在原模块里, 不在这里重复实现。
+ * 表里没有「对应尺寸」列(例如透视表)时 `classifyReviewTable` 返回**空数组**,
+ * 而不是全 `ok`。调用方据此判断"这张表不适用尺寸审查"; 返回全 ok 会被当成
+ * "审过了, 全都没问题", 两者语义完全不同。
  */
 
-import type { JigException } from './jigExceptions'
-import { findExceptionHit } from './jigExceptions'
 import type { Row, Table } from './table'
 import type { SizeValidationRules } from './validate'
 import { validateSizeMatch } from './validate'
 
 /** 一行的审查归类 */
-export type ReviewKind = 'ok' | 'mismatch' | 'exception'
+export type ReviewKind = 'ok' | 'mismatch'
 
 /**
- * 审查页的三档。
+ * 审查页的视野。
  *
- *   all        所有对象 —— 不筛
- *   mismatch   尺寸不匹配(含例外) —— 所有标红的行
- *   exception  仅例外 —— 只留命中例外对象的行
+ *   all       所有对象 —— 不筛
+ *   mismatch  尺寸不匹配 —— 只留标红的行
  */
-export type ReviewScope = 'all' | 'mismatch' | 'exception'
+export type ReviewScope = 'all' | 'mismatch'
 
 /** 分档按钮的标签与顺序, 供 UI 直接遍历 */
 export const REVIEW_SCOPES: ReadonlyArray<{ id: ReviewScope; label: string }> = [
   { id: 'all', label: '所有对象' },
-  { id: 'mismatch', label: '尺寸不匹配(含例外)' },
-  { id: 'exception', label: '仅例外' },
+  { id: 'mismatch', label: '尺寸不匹配' },
 ]
 
 /**
  * 判定单行。
  *
- * 例外优先: 先查 (JIG ID, P/N) 是否命中例外清单, 命中直接归 `exception`,
- * 不再走尺寸判定 —— 这不是优化, 是语义要求。256/262 的尺寸是 All Size
- * (恒匹配), 若先判尺寸就会得到 `ok`, 例外被静默吞掉。
+ * 取值为空(P/N 太短、型号不在映射表 -> 尺寸空串)时 validateSizeMatch 视为
+ * 匹配, 这是既有约定: 静默不标红, 宁可漏报也不误报。
  */
 export function classifyReviewRow(
   row: Row,
   rules: SizeValidationRules,
-  exceptions: ReadonlyMap<string, JigException>,
 ): ReviewKind {
   const pn = row['P/N'] ?? ''
-  if (findExceptionHit(exceptions, row['Jig ID'] ?? '', pn)) return 'exception'
   return validateSizeMatch(pn, row['对应尺寸'] ?? '', rules) ? 'ok' : 'mismatch'
 }
 
 /**
  * 整表判定。
  *
- * 表里没有「对应尺寸」列时返回**空数组**而不是全 `ok`: 调用方据此判断
- * "这张表不适用尺寸审查"(例如透视表), 与改造前 mismatchFlags 的返回约定
- * 一致。返回全 ok 会让调用方以为"审过了, 全都没问题"。
+ * 没有「对应尺寸」列时返回空数组, 原因见文件头。
  */
 export function classifyReviewTable(
   table: Table,
   rules: SizeValidationRules,
-  exceptions: ReadonlyMap<string, JigException>,
 ): ReviewKind[] {
   if (!table.columns.includes('对应尺寸')) return []
-  return table.rows.map((r) => classifyReviewRow(r, rules, exceptions))
+  return table.rows.map((r) => classifyReviewRow(r, rules))
 }
 
-/** 该行是否要标红。例外与尺寸不匹配都标红, 只是分在不同档里。 */
+/** 该行是否要标红 */
 export function isFlagged(kind: ReviewKind): boolean {
   return kind !== 'ok'
 }
@@ -94,7 +78,5 @@ export function isFlagged(kind: ReviewKind): boolean {
 /** 该行是否属于某一档 */
 export function matchesScope(kind: ReviewKind, scope: ReviewScope): boolean {
   if (scope === 'all') return true
-  if (scope === 'exception') return kind === 'exception'
-  // mismatch 档含例外
   return kind !== 'ok'
 }

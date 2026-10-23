@@ -9,7 +9,6 @@
  */
 
 import type { AppConfig } from './config'
-import { annotateSize, buildExceptionIndex, findExceptionHit } from './jigExceptions'
 import type { Row, Table } from './table'
 import { emptyTable, pickColumns } from './table'
 
@@ -74,33 +73,7 @@ function applySizeMapping(rows: Row[], cfg: AppConfig): Row[] {
     return out
   })
 
-  return annotateExceptions(mapped, cfg)
-}
-
-/**
- * 给「对应尺寸」列追加例外标记, 形如 `All Size(65例外)`。
- *
- * 只在 (Jig ID, P/N) 命中例外时加。这一列同时用于表格显示和导出 Excel,
- * 所以标记要跟着走 —— 现场看到红字时, 尺寸列本身就说明了"为什么红",
- * 不必再去翻例外面板对照。
- *
- * 加标记不改变判定结果: 例外命中在 App.tsx 的 mismatchFlags 里已提前
- * 返回不匹配, 而 validateSizeMatch 入口又会剥离标记, 两处都不依赖它。
- *
- * 注意只在行里**已有** 「对应尺寸」时才写回。否则会凭空新增一列,
- * 把 applySizeMapping 刚排好的列序打乱。
- */
-function annotateExceptions(rows: Row[], cfg: AppConfig): Row[] {
-  const list = cfg.jigExceptions
-  if (!list || list.length === 0) return rows
-
-  const index = buildExceptionIndex(list)
-  return rows.map((r) => {
-    if (!('对应尺寸' in r)) return r
-    const hit = findExceptionHit(index, r['Jig ID'] ?? '', r['P/N'] ?? '')
-    if (!hit) return r
-    return { ...r, 对应尺寸: annotateSize(r['对应尺寸'] ?? '', hit.type) }
-  })
+  return mapped
 }
 
 /**

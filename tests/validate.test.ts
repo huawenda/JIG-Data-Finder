@@ -83,7 +83,7 @@ describe('尺寸验证 —— 规则边界', () => {
 
   it('提取长度非 4 时保守判为不匹配', () => {
     // 规格码固定 4 位, 提取长度改成 2 就无法全等比较。
-    // 宁可标红提示人工确认, 也不放行可能装错的治具。
+    // 宁可标红提示人工确认, 也不放行可能装错的 JIG。
     const twoDigitRules = { ...rules, pnExtractLength: 2 }
     expect(validateSizeMatch('XXXXXX65', '65/48', twoDigitRules)).toBe(false)
   })

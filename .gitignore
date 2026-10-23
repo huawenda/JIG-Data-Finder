@@ -58,9 +58,11 @@ temp.xlsx
 .DS_Store
 Thumbs.db
 
-# Markdown 文档（如果需要提交文档，请移除此行）
+# Markdown / 纯文本文档：默认不入库（草稿、笔记、临时产物）
 *.md
 *.txt
+# 业务文档按需白名单放行 —— 领域模型是团队共用的唯一事实来源，必须入库
+!docs/domain-rules.md
 
 # ===== Tauri / 前端 (v2) =====
 node_modules/

@@ -2,7 +2,7 @@
  * 尺寸验证算法 —— 逻辑源自 v1.x data_model.py 的 _validate_size_match
  *
  * 这是迁移中风险最高的纯函数: 任何一处规则顺序或边界判断的偏差, 都会导致
- * 红字标记的行集合不同, 用户据此判断治具是否可用。
+ * 红字标记的行集合不同, 用户据此判断 JIG 是否可用。
  *
  * ## 判定模型
  *
@@ -28,7 +28,7 @@
  * 存在两类误判:
  *   1. 假阳性 —— 尺寸串 "77/48_83/48" 遇到提取段 "7727" 时, 旧规则的
  *      "任意连续2位" 兜底会因为 "77" 子串存在而判成匹配, 但 7727 (77x27)
- *      根本不在这个治具的规格里, 应当判不匹配。
+ *      根本不在这个型号的规格里, 应当判不匹配。
  *   2. 假阴性 —— 旧规则没有把 "65/55" 与 "6555" 视为等价, 只能靠兜底
  *      规则侥幸命中, 一旦格式微调就漏判。
  *
@@ -44,7 +44,6 @@
  */
 
 import type { AppConfig } from './config'
-import { stripExceptionSuffix } from './jigExceptions'
 
 export interface SizeValidationRules {
   pnExtractStart: number
@@ -91,21 +90,11 @@ export function parseSizeCodes(size: string): string[] {
 /**
  * 验证 P/N 与对应尺寸是否匹配。
  *
- * ## 例外对象不在这里判定
- *
- * 「某些具体治具做不了某个 P/N」是治具维度的规则, 需要 Jig ID 才能判,
- * 而且优先级高于这里所有规则(包括 All Size 恒匹配)。它由调用方先判,
- * 命中就直接标红, 不会进到这个函数。
- *
- * 这样切分的理由: 本函数保持"只看 P/N 和尺寸串"的纯粹形态, 输入决定
- * 输出, 便于覆盖边界; 例外那条依赖外部清单, 放进来会让每次调用都带着
- * 一张表, 反而不好测。组合点在 App.tsx 的 mismatchFlags。
- *
- * 但「对应尺寸」列可能带例外标记(如 `All Size(65例外)`), 所以入口要剥离,
- * 保证即使带标记的串漏进来也按纯尺寸判定, 不会把标记里的数字当规格码。
+ * 本函数只看 P/N 与尺寸串两个输入, 不看 JIG 编号、不读外部清单 ——
+ * 输入决定输出, 边界好覆盖, 也方便单测。
  *
  * @param pnValue  P/N 字符串
- * @param sizeValue 对应尺寸字符串, 可带例外标记
+ * @param sizeValue 对应尺寸字符串
  * @param rules 规则参数, 通常由 rulesFromConfig 构造
  * @returns true 表示匹配 (或不适用验证)
  */
@@ -114,13 +103,11 @@ export function validateSizeMatch(
   sizeValue: string,
   rules: SizeValidationRules,
 ): boolean {
-  const size = stripExceptionSuffix(sizeValue)
-
   // 1. All Size 恒匹配
-  if (size === rules.allSizeValue) return true
+  if (sizeValue === rules.allSizeValue) return true
 
   // 2. 空值无法验证, 视为匹配
-  if (!pnValue || !size) return true
+  if (!pnValue || !sizeValue) return true
 
   // 3. 提取 P/N 中的尺寸编码; 长度不足视为匹配
   const start = rules.pnExtractStart
@@ -132,8 +119,8 @@ export function validateSizeMatch(
   //
   // 提取长度由配置决定 (默认 4)。若被改成其他长度, 规格码只有 4 位,
   // 此时无法做全等比较, 保守地判为不匹配 —— 宁可标红提示人工确认,
-  // 也不放行一个可能装错的治具。
+  // 也不放行一个可能装错的 JIG。
   if (pnDigits.length !== 4) return false
 
-  return parseSizeCodes(size).includes(pnDigits)
+  return parseSizeCodes(sizeValue).includes(pnDigits)
 }

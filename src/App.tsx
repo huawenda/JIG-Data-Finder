@@ -7,8 +7,6 @@ import { generatePivot } from './core/pivot'
 import { queryData, processSourceData, NOT_FOUND } from './core/query'
 import { processClipboardContent } from './core/clipboard'
 import { rulesFromConfig } from './core/validate'
-import { buildExceptionIndex } from './core/jigExceptions'
-import type { JigException } from './core/jigExceptions'
 import {
   classifyReviewTable,
   isFlagged,
@@ -28,7 +26,6 @@ import StageRail from './ui/StageRail'
 import SettingsDialog from './ui/SettingsDialog'
 import type { SettingsDraft } from './ui/SettingsDialog'
 import SizeMappingDialog from './ui/SizeMappingDialog'
-import JigExceptionDialog from './ui/JigExceptionDialog'
 import {
   IS_TAURI,
   basename,
@@ -71,11 +68,7 @@ const REVIEW_EMPTY: Record<ReviewScope, { title: string; hint: string }> = {
   },
   mismatch: {
     title: '当前范围内没有尺寸不匹配的记录',
-    hint: '这一档包含例外对象; 切到「所有对象」可看到该范围内的全部记录。',
-  },
-  exception: {
-    title: '当前范围内没有命中例外对象的记录',
-    hint: '例外清单在「例外对象」面板里维护; 切到「尺寸不匹配(含例外)」可一并看到型号能力不足的行。',
+    hint: '这一档只保留尺寸对不上的行; 切到「所有对象」可看到该范围内的全部记录。',
   },
 }
 
@@ -116,19 +109,18 @@ export default function App() {
   const [reviewAll, setReviewAll] = useState<Table>(EMPTY_PIVOT)
   const [pnFilter, setPnFilter] = useState('全部')
   /*
-   * 审查页的三档视野。默认「所有对象」—— 审查页默认是全量视图, 用户想
-   * 收窄时自己切档。筛选同时作用于导出: 切到「仅例外」再导出, 拿到的
-   * 就是一张纯例外清单, 可以直接发给车间。
+   * 审查页的两档视野。默认「所有对象」—— 审查页默认是全量视图, 用户想
+   * 收窄时自己切到「尺寸不匹配」。筛选同时作用于导出: 切到「尺寸不匹配」
+   * 再导出, 拿到的就是一张纯异常清单。
    *
-   * 取代了原来的「只看不匹配」勾选框: 那个只有两态(全部/标红), 分不出
-   * "治具本身的毛病"与"型号能力不够", 而这正是现场要分别处理的两件事。
+   * 用分段按钮而不是"只看不匹配"复选框: 两档各自带着行数, 不用先勾上
+   * 才知道有多少行不匹配。
    */
   const [reviewScope, setReviewScope] = useState<ReviewScope>('all')
 
   const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
   const [showSizeMapping, setShowSizeMapping] = useState(false)
-  const [showExceptions, setShowExceptions] = useState(false)
   /*
    * 当前生效的主题模式。
    *
@@ -384,9 +376,9 @@ export default function App() {
   //
   // 两个维度是正交的, 先后顺序不能反:
   //   先按 P/N 过滤 (用户在下拉框选的)
-  //   再按"只看尺寸不匹配"过滤 (用户勾的复选框)
-  // 反过来的话, 计数会随勾选变化, 而下拉框本身又依赖已过滤的结果,
-  // 会出现"选了某个 P/N 却在复选框过滤后没有该 P/N"的自相矛盾。
+  //   再按审查范围过滤 (工具条的分段按钮)
+  // 反过来的话, 计数会随档位变化, 而下拉框本身又依赖已过滤的结果,
+  // 会出现"选了某个 P/N 却在收窄后没有该 P/N"的自相矛盾。
   const reviewByPn = useMemo(() => {
     if (reviewAll.rows.length === 0) return EMPTY_PIVOT
     if (pnFilter === '全部') return reviewAll
@@ -413,30 +405,19 @@ export default function App() {
   // 这条分歧来自 Python 版: main_window.py:564 / :610 在装载审查表时
   // 直接 model_review.set_size_validation_enabled(True), 把用户配置
   // 强行覆盖掉; 只有 model_detail 是读 checkbox 的 (main_window.py:502)。
-  // 业务上也说得通 —— 审查页存在的意义就是挑出尺寸对不上的治具,
+  // 业务上也说得通 —— 审查页存在的意义就是挑出尺寸对不上的 JIG,
   // 关掉标红这页就没有内容了。
   //
   // 迁移时曾把开关一刀切在两个表上, 于是 size_validation_enabled=false
   // 的用户打开数据审查页看到的是一片"全部匹配", 与旧版行为不一致,
   // 很容易被误判成数据或算法有问题。
   /*
-   * 例外索引: JIG ID -> 记录。
-   *
-   * 逐行判定都要查一次, 十万行乘几十条例外, 若每次都遍历数组会到千万级
-   * 字符串比较。索引后是 O(1)。依赖 cfg.jigExceptions, 面板保存后自动重建。
-   */
-  const exceptionIndex = useMemo(
-    () => buildExceptionIndex(cfg.jigExceptions),
-    [cfg.jigExceptions],
-  )
-
-  /*
-   * 标红标记 = 分类结果里非 ok 的那些。查询结果页仍只要一个布尔,
-   * 分类的细节(例外 / 尺寸不匹配)只在审查页用得上。
+   * 标红标记 = 分类结果里非 ok 的那些。查询结果页只要一个布尔,
+   * 分类本身留给审查页筛行用。
    */
   const mismatchFlags = useCallback(
-    (table: Table): boolean[] => classifyReviewTable(table, rules, exceptionIndex).map(isFlagged),
-    [rules, exceptionIndex],
+    (table: Table): boolean[] => classifyReviewTable(table, rules).map(isFlagged),
+    [rules],
   )
 
   const detailFlags = useMemo(
@@ -446,32 +427,26 @@ export default function App() {
 
   /*
    * 审查页的分类结果。审查页不过 sizeValidation 开关 —— 这一页的存在意义
-   * 就是挑出对不上的治具, 关掉标红这页就没有内容了。
+   * 就是挑出对不上的 JIG, 关掉标红这页就没有内容了。
    *
-   * 保留完整分类(而不是立刻折成布尔), 是因为三档视野要按类型筛:
-   * 「仅例外」只留 exception, 「尺寸不匹配」留所有非 ok。
+   * 保留完整分类(而不是立刻折成布尔), 是因为两档视野要按它筛行;
+   * 一行只判一次, 标红与筛选共用同一份结果。
    */
   const reviewKinds = useMemo<ReviewKind[]>(
-    () => classifyReviewTable(reviewByPn, rules, exceptionIndex),
-    [reviewByPn, rules, exceptionIndex],
+    () => classifyReviewTable(reviewByPn, rules),
+    [reviewByPn, rules],
   )
 
   const reviewFlags = useMemo(() => reviewKinds.map(isFlagged), [reviewKinds])
 
-  // 各档的行数, 给分档按钮显示。all 用表长, 不另算一遍。
-  const reviewCounts = useMemo(() => {
-    let mismatch = 0
-    let exception = 0
-    for (const k of reviewKinds) {
-      if (k === 'exception') {
-        exception += 1
-        mismatch += 1
-      } else if (k === 'mismatch') {
-        mismatch += 1
-      }
-    }
-    return { all: reviewByPn.rows.length, mismatch, exception }
-  }, [reviewKinds, reviewByPn])
+  // 两档的行数, 给分档按钮显示。all 用表长, 不另算一遍。
+  const reviewCounts = useMemo(
+    () => ({
+      all: reviewByPn.rows.length,
+      mismatch: reviewKinds.filter(isFlagged).length,
+    }),
+    [reviewKinds, reviewByPn],
+  )
 
   /*
    * 按档筛行。分类数组在这之前算好, 所以这里只做过滤 —— 一行不重复判定。
@@ -585,7 +560,7 @@ export default function App() {
       )
   }
 
-  // ---- 型号尺寸匹配 / 例外对象 ----
+  // ---- 型号尺寸匹配 ----
   /**
    * 配置改动后重算所有已加载的表。
    *
@@ -593,9 +568,6 @@ export default function App() {
    * applySizeMapping 填进去的; 红字标记也是拿着表内容算的。所以只 setCfg
    * 的话, 界面上的列值还是旧的, 用户会以为保存没生效 —— 更糟的是导出
    * 文件里也是旧值, 拿去做尺寸核对会得出错误结论。
-   *
-   * 两个面板改的是同一列的不同侧面(型号能力 vs 单台治具例外), 重算流程
-   * 完全一样, 抽出来共用, 免得两处逻辑日后慢慢走偏。
    */
   const rebuildTables = useCallback(
     (next: AppConfig) => {
@@ -621,8 +593,8 @@ export default function App() {
   )
 
   const saveSizeMapping = (mapping: Record<string, string>, order: string[]) => {
-    // 只 patch 自己的两个字段。不能写成 { ...cfg, ...传入的整个对象 } ——
-    // 那样会把另一个面板刚存的 jigExceptions 一起盖掉。
+    // 只 patch 自己的两个字段, 不整体覆写配置 —— 那样会把磁盘上其它
+    // 字段的当前值一起盖掉。
     const next = { ...cfg, jigSizeMapping: mapping, jigSizeMappingOrder: order }
     setCfg(next)
     setShowSizeMapping(false)
@@ -633,19 +605,6 @@ export default function App() {
       .then(() =>
         setToast({ kind: 'ok', text: `已保存 ${Object.keys(mapping).length} 条型号尺寸规则` }),
       )
-      .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
-  }
-
-  const saveJigExceptions = (list: JigException[]) => {
-    // 同上, 只 patch jigExceptions, 不碰 jigSizeMapping。
-    const next = { ...cfg, jigExceptions: list }
-    setCfg(next)
-    setShowExceptions(false)
-    applyConfig(next)
-    rebuildTables(next)
-
-    writeConfigFile(next)
-      .then(() => setToast({ kind: 'ok', text: `已保存 ${list.length} 条例外对象` }))
       .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
   }
 
@@ -711,14 +670,6 @@ export default function App() {
           onClick={() => setShowSizeMapping(true)}
         >
           型号尺寸匹配
-        </button>
-        <button
-          className="btn"
-          type="button"
-          title="维护「这台治具做不到这个 P/N」的例外清单"
-          onClick={() => setShowExceptions(true)}
-        >
-          例外对象
         </button>
         <input
           ref={fileInputRef}
@@ -856,9 +807,8 @@ export default function App() {
               </select>
               <span className="toolbar__spacer" />
               {/*
-                三档视野。取代原来的「只看不匹配」勾选框 —— 两态分不出
-                "治具本身的毛病"和"型号能力不够", 而这两件事现场要做的
-                动作完全不同。三档的顺序就是收窄的方向: 全部 -> 标红 -> 仅例外。
+                两档视野: 全部 -> 只看标红。每档带行数, 不用先勾上才知道
+                有多少行对不上; 导出也跟随当前档。
               */}
               <div className="scope" role="group" aria-label="审查范围">
                 {REVIEW_SCOPES.map((s) => (
@@ -979,15 +929,6 @@ export default function App() {
           config={cfg}
           onSave={saveSizeMapping}
           onClose={() => setShowSizeMapping(false)}
-        />
-      )}
-
-      {showExceptions && (
-        <JigExceptionDialog
-          config={cfg}
-          sourceRows={source?.rows ?? []}
-          onSave={saveJigExceptions}
-          onClose={() => setShowExceptions(false)}
         />
       )}
     </div>

@@ -59,7 +59,7 @@ export function pairsToMapping(pairs: ReadonlyArray<MappingPair>): Record<string
  * 校验每一行, 返回行下标到错误信息的映射。
  *
  * 尺寸串允许为空 —— 映射到空串时 validateSizeMatch 规则 2 会判成
- * "匹配", 也就是"这一型号不做尺寸校验"。有些治具确实没有尺寸概念,
+ * "匹配", 也就是"这一型号不做尺寸校验"。有些 JIG 确实没有尺寸概念,
  * 显式写成空串比删掉这行更清楚。
  */
 export function validateMappingPairs(pairs: ReadonlyArray<MappingPair>): MappingErrors {
