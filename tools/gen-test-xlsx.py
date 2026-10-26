@@ -117,65 +117,79 @@ HARDCODED_MODELS = [
 ]
 
 # ---------------------------------------------------------------------------
-# 分组 = 一个 CST (20 层, 即 20 行)
+# 分组 = 一个 CST
 #
-#   (P/N, 型号, 期望标红)
+#   (P/N, 型号, 工程名, 工程号, 行数, 期望标红)
 #
 # 为什么按 CST 分组, 而不是按 (P/N, 型号) 摊行:
-#   现场的装载单位就是 CST —— 一个 CST 固定 20 层、一层一块 JIG, 同一个
+#   现场的装载单位就是 CST —— 一个 CST 最多 20 层、一层一块 JIG, 同一个
 #   CST 里的 JIG 走同一道工序、服务同一个 P/N。所以一组 = 一个 CST 的
-#   20 层, 组内 P/N / 工程 / Lot 恒定, 只有 slot 与 JIG ID 在变。
-#   这样 (CST, Slot) 天然唯一, 也不会出现"一个槽位塞三块板"—— 那是
-#   物理上不可能的数据。
+#   若干层, 组内 P/N / 工程 / Lot 恒定, 只有 slot 与 JIG ID 在变。
+#   这样 (CST, Slot) 天然唯一, 也不会出现"一个槽位塞三块板"。
 #
-# 25 个 CST × 20 层 = 500 行。现场共 40 个 CST (D8CCST500001–500040),
-# 这里只用前 25 个, 符合"产线不是满载"的真实状态。
+# ## 三条现场分布约束
+#
+#   1. **尺寸码不超过 2 类, 尾缀不超过 3 类** —— 现场不会同时做很多规格。
+#      本文件只用 6555 / 7748 两个码, 尾缀 B / C / D 三种。
+#      (码与前缀/后缀的绑定关系仍要遵守, 见 PN_RULES)
+#   2. **工序分布 70 / 30** —— PNP / Jig Loading / Jig 洗净及检查 这三道
+#      是主力, 合计 350 行 (70%); 其余 8 道合计 150 行 (30%)。
+#      CST 的层级是 20 层, 所以 350 行要拆成 17×20 + 1×10,
+#      150 行拆成 7×20 + 1×10 —— 允许 CST 不满载, 现场本来也不会装满。
+#   3. **一共 26 个 CST**, 都在 D8CCST500001–500040 之内。
 #
 # 期望标红由 (型号, P/N 尺寸码) 决定: 型号的尺寸串里有这个码 -> 绿,
-# 没有 -> 红。六个码**每个都安排了红绿两侧**, 避免某个码只测到一种结果。
+# 没有 -> 红。两个码都安排了红绿两侧, 避免某个码只测到一种结果。
 #
 # 规格码的取法: 尺寸串按 "_" 拆成互斥组, 每组去掉非数字字符后是 4 位数字。
 #   "65/55"                            -> 6555
 #   "65/55_77/48_83/48"                -> 6555, 7748, 8348
 #   "77/48_83/48"                      -> 7748, 8348
 #   "77/27_77/42_77/48_83/48"          -> 7727, 7742, 7748, 8348
-#   "65/55_77/27_77/42_77/48_83/48"    -> 全部 6 个
-#   "39/31_77/27_77/42_77/48_83/48"    -> 3931, 7727, 7742, 7748, 8348
 # ---------------------------------------------------------------------------
 GROUPS = [
-    # ── 6555: 6073J + B..H ──
-    ("6073J-6555B", "184", False),
-    ("6073J-6555C", "420A", False),
-    ("6073J-6555D", "430", False),
-    ("6073J-6555E", "508", True),        # 508 只有 7748/8348
-    ("6073J-6555F", "252A", True),       # 252A 是 39/31 + 77/83 系列
-    ("6073J-6555G", "256", False),       # All Size 恒匹配
-    ("6073J-6555H", "262", False),
-    # ── 7748: 6072J + B..G ──
-    ("6072J-7748B", "184", True),        # 184 只有 6555
-    ("6072J-7748C", "430", False),
-    ("6072J-7748D", "508", False),
-    ("6072J-7748E", "509", False),
-    ("6072J-7748F", "252", False),
-    ("6072J-7748G", "502", True),
-    # ── 8348: 6072J + B/C/F/G ──
-    ("6072J-8348B", "420B", True),
-    ("6072J-8348C", "508", False),
-    ("6072J-8348F", "509", False),
-    ("6072J-8348G", "184", True),
-    # ── 7727: 6073J + C (单后缀) ──
-    ("6073J-7727C", "420A", True),
-    ("6073J-7727C", "508N", False),
-    # ── 3931: 6073J + C ──
-    ("6073J-3931C", "477", True),
-    ("6073J-3931C", "252A", False),
-    # ── 7742: 6072J + B/C ──
-    ("6072J-7742B", "502A", True),
-    ("6072J-7742C", "509N", False),
-    # ── 复用同一个 P/N: 一个 P/N 下挂两个 CST (P/N 1:N Lot), 接近现场 ──
-    ("6073J-6555B", "502N", False),
-    ("6072J-8348B", "502", True),
+    # ── 主力工序一: PNP ── 6 组 120 行
+    ("6073J-6555B", "184",  "PNP", "9000", 20, False),
+    ("6073J-6555C", "420A", "PNP", "9000", 20, False),
+    ("6073J-6555D", "430",  "PNP", "9000", 20, False),
+    ("6073J-6555B", "508",  "PNP", "9000", 20, True),   # 508 只有 7748/8348
+    ("6073J-6555C", "252A", "PNP", "9000", 20, True),   # 252A 无 6555
+    ("6073J-6555D", "502N", "PNP", "9000", 20, False),
+
+    # ── 主力工序二: Jig Loading ── 6 组 110 行 (两个工程号都用上)
+    ("6072J-7748B", "430",  "Jig Loading", "50000", 20, False),
+    ("6072J-7748C", "508",  "Jig Loading", "50000", 20, False),
+    ("6072J-7748D", "509",  "Jig Loading", "50600", 20, False),
+    ("6072J-7748B", "184",  "Jig Loading", "50600", 20, True),   # 184 只有 6555
+    ("6072J-7748C", "502",  "Jig Loading", "50000", 20, True),
+    ("6072J-7748D", "252",  "Jig Loading", "50600", 10, False),  # 未满载
+
+    # ── 主力工序三: Jig 洗净及检查 ── 6 组 120 行
+    ("6073J-6555B", "256",  "Jig 洗净及检查", "9100", 20, False),  # All Size
+    ("6073J-6555C", "262",  "Jig 洗净及检查", "9100", 20, False),
+    ("6073J-6555D", "508N", "Jig 洗净及检查", "9100", 20, True),   # 508N 无 6555
+    ("6073J-6555B", "252A", "Jig 洗净及检查", "9100", 20, True),
+    ("6073J-6555C", "420A", "Jig 洗净及检查", "9100", 20, False),
+    ("6073J-6555D", "509N", "Jig 洗净及检查", "9100", 20, True),   # 509N 无 6555
+
+    # ── 其余 8 道工序 ── 8 组 150 行, 每道各一组
+    ("6072J-7748B", "502A", "PNP 2nd", "09050", 20, True),
+    ("6072J-7748C", "420B", "Jig Unloading", "51000", 20, True),
+    ("6072J-7748D", "477",  "Jig N判定 另外移载", "52000", 20, True),
+    ("6073J-6555B", "430",  "Jig 分离", "53000", 20, False),
+    ("6073J-6555C", "502N", "目视Stage", "54000", 20, False),
+    ("6073J-6555D", "256",  "Jig 搬出待机", "8400", 20, False),
+    ("6072J-7748B", "509",  "Jig搬出", "55000", 20, False),
+    ("6073J-6555B", "262",  "Jig入库", "56000", 10, False),   # 未满载
 ]
+
+# 主力工序: 这三道合计应占 70%
+MAIN_ENGINEERINGS = ("PNP", "Jig Loading", "Jig 洗净及检查")
+MAIN_SHARE = 0.70
+
+# 现场分布上限: 尺寸码不超过 2 类, 尾缀不超过 3 类
+MAX_SIZE_CODES = 2
+MAX_SUFFIXES = 3
 
 # ---------------------------------------------------------------------------
 # 不绑定 CST 的组 (0 起)
@@ -184,14 +198,14 @@ GROUPS = [
 # 没有意义; 而 CST 只是实物载体, LOT 在 JIG Loading 阶段尚未上载时确实
 # 会脱离 CST 单独存在。
 #
-# 这条豁免**只对 JIG Loading 工程成立**。其他工程必须与 CST 绑定,
-# 因为 JIG 已经装在某个具体的 CST / 层位上, 没有载体说不通。
+# 这条豁免**只对 Jig Loading 工程成立**。其他工程必须与 CST 绑定,
+# 因为 JIG 已经装在某个具体的 CST / 层位上。
 #
-# 每组序号对应的工程由 `ENGINEERINGS[gi % 12]` 决定: gi=3 与 gi=4 正好
-# 是 Jig Loading 的两个工程号 (50000 / 50600)。main() 里有 assert 兜住
-# "被豁免的组必须是 Jig Loading", 改 GROUPS 顺序时会被立刻拦住。
+# 这里选的是第 7、10 组 (0 起 6、9), 都是 Jig Loading。
+# main() 里有 assert 兜住"被豁免的组必须是 Jig Loading", 改 GROUPS 顺序
+# 时会被立刻拦住。
 # ---------------------------------------------------------------------------
-UNBONDED_GROUPS = {3, 4}
+UNBONDED_GROUPS = {6, 9}
 
 # 工程名 -> 工程号。
 #   Jig Loading 固定用 50000: pivot.ts 的生产中筛选按
@@ -345,27 +359,42 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. 全量自检 —— 宁可不产出, 也不产出错数据
     # ------------------------------------------------------------------
-    expected_rows = len(GROUPS) * SLOTS_PER_CST
+    expected_rows = sum(g[4] for g in GROUPS)
     assert expected_rows == ROWS_TOTAL, (
-        f"{len(GROUPS)} 组 × {SLOTS_PER_CST} 层 = {expected_rows} 行, 应为 {ROWS_TOTAL}"
+        f"{len(GROUPS)} 组合计 {expected_rows} 行, 应为 {ROWS_TOTAL}"
     )
     assert len(GROUPS) <= CST_TOTAL_ON_SITE, (
         f"用到 {len(GROUPS)} 个 CST, 超过现场总数 {CST_TOTAL_ON_SITE}"
     )
 
-    for pn, model, _red in GROUPS:
+    for pn, model, eng_name, eng_code, rows, _red in GROUPS:
         assert pn_is_valid(pn), f"P/N {pn} 不符合现场编码规则 (前缀/后缀须与该码匹配)"
         assert model in HARDCODED_MODELS, f"型号 {model} 不在白名单"
+        assert 1 <= rows <= SLOTS_PER_CST, f"{pn}/{model} 行数 {rows} 超出 1–{SLOTS_PER_CST}"
+        assert (eng_name, eng_code) in ENGINEERINGS, f"工序 {eng_name}/{eng_code} 不在工序表里"
+
+    # 分布约束一: 尺寸码不超过 2 类, 尾缀不超过 3 类
+    codes = {pn[6:10] for pn, *_ in GROUPS}
+    suffixes = {pn[-1] for pn, *_ in GROUPS}
+    assert len(codes) <= MAX_SIZE_CODES, f"尺寸码有 {len(codes)} 类: {sorted(codes)}"
+    assert len(suffixes) <= MAX_SUFFIXES, f"尾缀有 {len(suffixes)} 类: {sorted(suffixes)}"
+
+    # 分布约束二: 主力三工序合计 70%
+    main_rows = sum(g[4] for g in GROUPS if g[2] in MAIN_ENGINEERINGS)
+    share = main_rows / ROWS_TOTAL
+    assert abs(share - MAIN_SHARE) < 1e-9, (
+        f"主力工序 {main_rows} 行 = {share:.1%}, 应为 {MAIN_SHARE:.0%}"
+    )
 
     # 只有 Jig Loading 允许 LOT 脱离 CST —— 豁免写错了会被这里拦住
     for gi in UNBONDED_GROUPS:
-        eng = ENGINEERINGS[gi % len(ENGINEERINGS)][0]
+        eng = GROUPS[gi][2]
         assert eng == "Jig Loading", (
             f"第 {gi + 1} 组是「{eng}」, 只有 Jig Loading 允许 CST 为空"
         )
 
     # ------------------------------------------------------------------
-    # 2. 逐组生成行 —— 一组 = 一个 CST 的 20 层
+    # 2. 逐组生成行 —— 一组 = 一个 CST 的若干层
     # ------------------------------------------------------------------
     generated = 0                      # 生成 ID 的序号
     all_ids: set[str] = set()
@@ -373,10 +402,9 @@ def main() -> None:
     groups_meta: list[dict] = []
     records: list[dict] = []
 
-    for gi, (pn, model, expect_red) in enumerate(GROUPS):
+    for gi, (pn, model, eng_name, eng_code, rows, expect_red) in enumerate(GROUPS):
         cst = make_cst(gi)
         lot = make_lot(gi)
-        eng_name, eng_code = ENGINEERINGS[gi % len(ENGINEERINGS)]
         name = f"{gi + 1:02d}-{model}-{pn[6:10]}"
 
         # LOT 是否挂在这台 CST 上。挂不上时整组 CST 列留空 (不是个别行),
@@ -394,7 +422,7 @@ def main() -> None:
         )
 
         jig_ids: list[str] = []
-        for slot in range(1, SLOTS_PER_CST + 1):
+        for slot in range(1, rows + 1):
             jig_id = make_jig_id(generated)
             generated += 1
 
@@ -431,7 +459,8 @@ def main() -> None:
             "pn": pn,
             "model": model,
             "engineering": eng_name,
-            "rows": SLOTS_PER_CST,
+            "engineeringCode": eng_code,
+            "rows": rows,
             "bonded": bonded,
             "expectRed": expect_red,
             "jigIds": jig_ids,
@@ -516,21 +545,30 @@ def main() -> None:
     pn_count = len({g["pn"] for g in groups_meta})
     cst_count = len({g["cst"] for g in groups_meta if g["cst"]})
     lot_count = len({g["lot"] for g in groups_meta})
+    codes = sorted({pn[6:10] for pn, *_ in GROUPS})
+    suffixes = sorted({pn[-1] for pn, *_ in GROUPS})
+    main_rows = sum(g[4] for g in GROUPS if g[2] in MAIN_ENGINEERINGS)
+    full = sum(1 for g in groups_meta if g["rows"] == SLOTS_PER_CST)
+
     print(f"written: {OUT} ({size:.1f} KB)")
     print(f"         2 页: 源数据 {len(records)} 行 / 期望结果 {len(records)} 行")
     print(f"         {FIXTURE} ({len(groups_meta)} 组)")
-    print(f"  装载   {cst_count} 个 CST x {SLOTS_PER_CST} 层 = {len(records)} 行"
-          f" (现场共 {CST_TOTAL_ON_SITE} 个 CST, 未满载)")
-    print(f"  Lot    {lot_count} 个 (与 CST 一一对应); "
-          f"{len(UNBONDED_GROUPS)} 个 LOT 脱离 CST (Jig Loading)")
+    print(f"  装载   {len(groups_meta)} 个载体 = {len(records)} 行 "
+          f"({cst_count} 个 CST + {len(UNBONDED_GROUPS)} 个脱离 CST 的 LOT; "
+          f"{full} 个满载, {len(groups_meta) - full} 个未满载)")
+    print(f"  分布   尺寸码 {len(codes)} 类 {codes} / 尾缀 {len(suffixes)} 类 {suffixes}")
+    print(f"  工序   主力三道 {main_rows} 行 = {main_rows / ROWS_TOTAL:.0%}, "
+          f"其余 {ROWS_TOTAL - main_rows} 行 = {(ROWS_TOTAL - main_rows) / ROWS_TOTAL:.0%}")
+    print(f"  Lot    {lot_count} 个; {len(UNBONDED_GROUPS)} 个脱离 CST (Jig Loading)")
     print(f"  P/N    {pn_count} 个, 全部符合现场编码规则")
     print(f"  分组   {len(groups_meta)} 组 "
           f"({len(red_groups)} 组标红 / {len(groups_meta) - len(red_groups)} 组不标红)")
     print(f"  红绿   共 {len(records)} 行, 应标红 {red_rows} / 应不红 {len(records) - red_rows}")
-    print(f"  工序   {len({e[0] for e in ENGINEERINGS})} 道, "
-          f"工程号 {len({e[1] for e in ENGINEERINGS})} 个")
-    # 透视表行数 = 不同 P/N 小计行 + 不同 (P/N, CST) 明细行 + 1 总计
-    combos = len({(g["pn"], g["cst"]) for g in groups_meta})
+    print(f"  工序数 {len({g['engineering'] for g in groups_meta})} 道, "
+          f"工程号 {len({g['engineeringCode'] for g in groups_meta})} 个")
+    # 透视行数 = 不同 P/N 小计行 + 不同 (P/N, 载体) 明细行 + 1 总计;
+    # 未绑定 CST 的组按回填后的 Lot ID 计
+    combos = len({(g["pn"], g["cst"] or g["lot"]) for g in groups_meta})
     print(f"  透视   预计 {pn_count} + {combos} + 1 = {pn_count + combos + 1} 行")
 
 

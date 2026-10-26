@@ -41,6 +41,7 @@ interface Fixture {
     model: string
     /** 该 CST 当前所在工序 (每个 CST 唯一) */
     engineering: string
+    engineeringCode: string
     rows: number
     /** 这个 LOT 是否挂在 CST 上。false 只出现在 Jig Loading */
     bonded: boolean
@@ -133,6 +134,18 @@ describe('test-500.xlsx', () => {
     expect(present.size).toBe(11)
   })
 
+  it('主力三道工序合计 70%, 其余 8 道合计 30%', () => {
+    // 现场大部分 JIG 堆在前三道 (PNP / Jig Loading / Jig 洗净及检查),
+    // 后面的工序在制品少。70 : 30 是照着实际分布定的。
+    const main = ['PNP', 'Jig Loading', 'Jig 洗净及检查']
+    let mainRows = 0
+    for (const r of strRows) {
+      if (main.includes(r['工程名'])) mainRows += 1
+    }
+    expect(mainRows / strRows.length, `主力三道 ${mainRows} / ${strRows.length}`)
+      .toBeCloseTo(0.7, 6)
+  })
+
   it('PNP 2nd 排在 PNP 与 Jig 洗净及检查之间', () => {
     const orders = Object.entries(cfg.engineeringConfig)
       .sort((a, b) => a[1].order - b[1].order)
@@ -212,9 +225,25 @@ describe('test-500.xlsx', () => {
       expect(rule.suffixes.includes(suffix), `${pn} 的后缀 ${suffix} 不属于该码的合法后缀 ${rule.suffixes}`)
         .toBe(true)
     }
-    // 六个尺寸码都要覆盖, 否则某个码的匹配路径整条没被验证
-    for (const code of Object.keys(PN_RULES)) {
-      expect(pns.some((pn) => pn.includes(`-${code}`)), `尺寸码 ${code} 未被覆盖`).toBe(true)
+  })
+
+  it('尺寸码不超过 2 类, 尾缀不超过 3 类 (现场实际分布)', () => {
+    // 现场不会同时做很多规格 —— 这是"像不像真实导出"的关键指标之一。
+    const pns = [...new Set(strRows.map((r) => r['P/N']))]
+    const codes = [...new Set(pns.map((pn) => pn.slice(6, 10)))]
+    const suffixes = [...new Set(pns.map((pn) => pn.slice(-1)))]
+    expect(codes.length, `尺寸码有 ${codes.length} 类: ${codes.join(', ')}`)
+      .toBeLessThanOrEqual(2)
+    expect(suffixes.length, `尾缀有 ${suffixes.length} 类: ${suffixes.join(', ')}`)
+      .toBeLessThanOrEqual(3)
+
+    // 每一类都要有红有绿, 否则这一类等于没测
+    for (const code of codes) {
+      const reds = fixture.groups
+        .filter((g) => g.pn.slice(6, 10) === code)
+        .map((g) => g.expectRed)
+      expect(reds.some(Boolean), `尺寸码 ${code} 没有红色用例`).toBe(true)
+      expect(reds.some((r) => !r), `尺寸码 ${code} 没有绿色用例`).toBe(true)
     }
   })
 
@@ -339,7 +368,9 @@ describe('test-500.xlsx', () => {
     expect(dup, `这些槽位装了不止一块 JIG`).toEqual([])
   })
 
-  it('每个载体正好 20 层, slot 1–20 各一次', () => {
+  it('每个载体不超过 20 层, slot 从 1 起连续且不重复', () => {
+    // 一台 CST 最多 20 层 (1–20)。未满载是正常的: 现场不会每台都装满,
+    // 本文件里 350 行 / 150 行的比例就是靠两个 10 层的 CST 凑出来的。
     const byCarrier = new Map<string, number[]>()
     for (const r of strRows) {
       const carrier = r['CST ID'] || r['Lot ID']
@@ -348,9 +379,10 @@ describe('test-500.xlsx', () => {
     }
     expect(byCarrier.size).toBeGreaterThan(0)
     for (const [carrier, slots] of byCarrier) {
-      expect(slots.length, `${carrier} 只有 ${slots.length} 层`).toBe(20)
-      expect([...slots].sort((a, b) => a - b), `${carrier} 的层号不是 1–20`)
-        .toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
+      expect(slots.length, `${carrier} 有 ${slots.length} 层, 超过 20`)
+        .toBeLessThanOrEqual(20)
+      expect([...slots].sort((a, b) => a - b), `${carrier} 的层号不是 1 起的连续整数`)
+        .toEqual(Array.from({ length: slots.length }, (_, i) => i + 1))
     }
   })
 
@@ -427,11 +459,12 @@ describe('test-500.xlsx', () => {
     }
   })
 
-  it('分组行数合计与夹具声明一致, 每组就是一个 CST 的 20 层', () => {
+  it('分组行数合计与夹具声明一致, 每组就是一个 CST 的若干层', () => {
     const total = fixture.groups.reduce((s, g) => s + g.rows, 0)
     expect(total).toBe(fixture.rowCount)
     for (const g of fixture.groups) {
-      expect(g.rows, `${g.name} 应是一个 CST 的 20 层`).toBe(20)
+      expect(g.rows, `${g.name} 的层数超出 1–20`).toBeLessThanOrEqual(20)
+      expect(g.rows, `${g.name} 的层数为 0`).toBeGreaterThan(0)
       expect(g.jigIds.length, `${g.name} 声明 ${g.rows} 行但给了 ${g.jigIds.length} 个 ID`)
         .toBe(g.rows)
     }

@@ -2,27 +2,12 @@
  "_note": "由 tools/gen-test-xlsx.py 生成, 勿手改。groups 记录了每组的构造意图(期望红绿), 测试据它断言, 因此期望值不是从被测代码推出来的。",
  "rowCount": 500,
  "pnList": [
-  "6072J-7742B",
-  "6072J-7742C",
   "6072J-7748B",
   "6072J-7748C",
   "6072J-7748D",
-  "6072J-7748E",
-  "6072J-7748F",
-  "6072J-7748G",
-  "6072J-8348B",
-  "6072J-8348C",
-  "6072J-8348F",
-  "6072J-8348G",
-  "6073J-3931C",
   "6073J-6555B",
   "6073J-6555C",
-  "6073J-6555D",
-  "6073J-6555E",
-  "6073J-6555F",
-  "6073J-6555G",
-  "6073J-6555H",
-  "6073J-7727C"
+  "6073J-6555D"
  ],
  "groups": [
   {
@@ -32,6 +17,7 @@
    "pn": "6073J-6555B",
    "model": "184",
    "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
    "bonded": true,
    "expectRed": false,
@@ -64,7 +50,8 @@
    "lot": "CJE765-00A1-00",
    "pn": "6073J-6555C",
    "model": "420A",
-   "engineering": "PNP 2nd",
+   "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
    "bonded": true,
    "expectRed": false,
@@ -97,7 +84,8 @@
    "lot": "CJE765-00A2-00",
    "pn": "6073J-6555D",
    "model": "430",
-   "engineering": "Jig 洗净及检查",
+   "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
    "bonded": true,
    "expectRed": false,
@@ -126,13 +114,14 @@
   },
   {
    "name": "04-508-6555",
-   "cst": "",
+   "cst": "D8CCST500004",
    "lot": "CJE765-00A3-00",
-   "pn": "6073J-6555E",
+   "pn": "6073J-6555B",
    "model": "508",
-   "engineering": "Jig Loading",
+   "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
-   "bonded": false,
+   "bonded": true,
    "expectRed": true,
    "jigIds": [
     "CJJ070222061",
@@ -159,13 +148,14 @@
   },
   {
    "name": "05-252A-6555",
-   "cst": "",
+   "cst": "D8CCST500005",
    "lot": "CJE765-00A4-00",
-   "pn": "6073J-6555F",
+   "pn": "6073J-6555C",
    "model": "252A",
-   "engineering": "Jig Loading",
+   "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
-   "bonded": false,
+   "bonded": true,
    "expectRed": true,
    "jigIds": [
     "CJJ070296081",
@@ -191,12 +181,13 @@
    ]
   },
   {
-   "name": "06-256-6555",
+   "name": "06-502N-6555",
    "cst": "D8CCST500006",
    "lot": "CJE765-00A5-00",
-   "pn": "6073J-6555G",
-   "model": "256",
-   "engineering": "Jig Unloading",
+   "pn": "6073J-6555D",
+   "model": "502N",
+   "engineering": "PNP",
+   "engineeringCode": "9000",
    "rows": 20,
    "bonded": true,
    "expectRed": false,
@@ -224,14 +215,15 @@
    ]
   },
   {
-   "name": "07-262-6555",
-   "cst": "D8CCST500007",
+   "name": "07-430-7748",
+   "cst": "",
    "lot": "CJE765-00A6-00",
-   "pn": "6073J-6555H",
-   "model": "262",
-   "engineering": "Jig N判定 另外移载",
+   "pn": "6072J-7748B",
+   "model": "430",
+   "engineering": "Jig Loading",
+   "engineeringCode": "50000",
    "rows": 20,
-   "bonded": true,
+   "bonded": false,
    "expectRed": false,
    "jigIds": [
     "CJJ070444023",
@@ -257,15 +249,16 @@
    ]
   },
   {
-   "name": "08-184-7748",
+   "name": "08-508-7748",
    "cst": "D8CCST500008",
    "lot": "CJE765-00A7-00",
-   "pn": "6072J-7748B",
-   "model": "184",
-   "engineering": "Jig 分离",
+   "pn": "6072J-7748C",
+   "model": "508",
+   "engineering": "Jig Loading",
+   "engineeringCode": "50000",
    "rows": 20,
    "bonded": true,
-   "expectRed": true,
+   "expectRed": false,
    "jigIds": [
     "CJJ070518043",
     "C4M000705217",
@@ -290,12 +283,13 @@
    ]
   },
   {
-   "name": "09-430-7748",
+   "name": "09-509-7748",
    "cst": "D8CCST500009",
    "lot": "CJE765-00A8-00",
-   "pn": "6072J-7748C",
-   "model": "430",
-   "engineering": "目视Stage",
+   "pn": "6072J-7748D",
+   "model": "509",
+   "engineering": "Jig Loading",
+   "engineeringCode": "50600",
    "rows": 20,
    "bonded": true,
    "expectRed": false,
@@ -323,15 +317,16 @@
    ]
   },
   {
-   "name": "10-508-7748",
-   "cst": "D8CCST500010",
+   "name": "10-184-7748",
+   "cst": "",
    "lot": "CJE765-00A9-00",
-   "pn": "6072J-7748D",
-   "model": "508",
-   "engineering": "Jig 搬出待机",
+   "pn": "6072J-7748B",
+   "model": "184",
+   "engineering": "Jig Loading",
+   "engineeringCode": "50600",
    "rows": 20,
-   "bonded": true,
-   "expectRed": false,
+   "bonded": false,
+   "expectRed": true,
    "jigIds": [
     "CJJ070666083",
     "C4M000706697",
@@ -356,15 +351,16 @@
    ]
   },
   {
-   "name": "11-509-7748",
+   "name": "11-502-7748",
    "cst": "D8CCST500011",
    "lot": "CJE765-00AA-00",
-   "pn": "6072J-7748E",
-   "model": "509",
-   "engineering": "Jig搬出",
+   "pn": "6072J-7748C",
+   "model": "502",
+   "engineering": "Jig Loading",
+   "engineeringCode": "50000",
    "rows": 20,
    "bonded": true,
-   "expectRed": false,
+   "expectRed": true,
    "jigIds": [
     "CJJ070740005",
     "C4M000707437",
@@ -392,10 +388,11 @@
    "name": "12-252-7748",
    "cst": "D8CCST500012",
    "lot": "CJE765-00AB-00",
-   "pn": "6072J-7748F",
+   "pn": "6072J-7748D",
    "model": "252",
-   "engineering": "Jig入库",
-   "rows": 20,
+   "engineering": "Jig Loading",
+   "engineeringCode": "50600",
+   "rows": 10,
    "bonded": true,
    "expectRed": false,
    "jigIds": [
@@ -408,7 +405,21 @@
     "C4M000708362",
     "C4M000708399",
     "C4M000708436",
-    "D8A000708473",
+    "D8A000708473"
+   ]
+  },
+  {
+   "name": "13-256-6555",
+   "cst": "D8CCST500013",
+   "lot": "CJE765-00AC-00",
+   "pn": "6073J-6555B",
+   "model": "256",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ070851035",
     "C4M000708547",
     "C4M000708584",
@@ -418,20 +429,7 @@
     "C4M000708732",
     "C4M000708769",
     "C4M000708806",
-    "D8A000708843"
-   ]
-  },
-  {
-   "name": "13-502-7748",
-   "cst": "D8CCST500013",
-   "lot": "CJE765-00AC-00",
-   "pn": "6072J-7748G",
-   "model": "502",
-   "engineering": "PNP",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000708843",
     "CJJ070888045",
     "C4M000708917",
     "C4M000708954",
@@ -441,7 +439,21 @@
     "C4M000709102",
     "C4M000709139",
     "C4M000709176",
-    "D8A000709213",
+    "D8A000709213"
+   ]
+  },
+  {
+   "name": "14-262-6555",
+   "cst": "D8CCST500014",
+   "lot": "CJE765-00AD-00",
+   "pn": "6073J-6555C",
+   "model": "262",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ070925055",
     "C4M000709287",
     "C4M000709324",
@@ -451,20 +463,7 @@
     "C4M000709472",
     "C4M000709509",
     "C4M000709546",
-    "D8A000709583"
-   ]
-  },
-  {
-   "name": "14-420B-8348",
-   "cst": "D8CCST500014",
-   "lot": "CJE765-00AD-00",
-   "pn": "6072J-8348B",
-   "model": "420B",
-   "engineering": "PNP 2nd",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000709583",
     "CJJ070962065",
     "C4M000709657",
     "C4M000709694",
@@ -474,7 +473,21 @@
     "C4M000709842",
     "C4M000709879",
     "C4M000709916",
-    "D8A000709953",
+    "D8A000709953"
+   ]
+  },
+  {
+   "name": "15-508N-6555",
+   "cst": "D8CCST500015",
+   "lot": "CJE765-00AE-00",
+   "pn": "6073J-6555D",
+   "model": "508N",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ070999075",
     "C4M000710027",
     "C4M000710064",
@@ -484,20 +497,7 @@
     "C4M000710212",
     "C4M000710249",
     "C4M000710286",
-    "D8A000710323"
-   ]
-  },
-  {
-   "name": "15-508-8348",
-   "cst": "D8CCST500015",
-   "lot": "CJE765-00AE-00",
-   "pn": "6072J-8348C",
-   "model": "508",
-   "engineering": "Jig 洗净及检查",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000710323",
     "CJJ071036085",
     "C4M000710397",
     "C4M000710434",
@@ -507,7 +507,21 @@
     "C4M000710582",
     "C4M000710619",
     "C4M000710656",
-    "D8A000710693",
+    "D8A000710693"
+   ]
+  },
+  {
+   "name": "16-252A-6555",
+   "cst": "D8CCST500016",
+   "lot": "CJE765-00AF-00",
+   "pn": "6073J-6555B",
+   "model": "252A",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ071073095",
     "C4M000710767",
     "C4M000710804",
@@ -517,20 +531,7 @@
     "C4M000710952",
     "C4M000710989",
     "C4M000711026",
-    "D8A000711063"
-   ]
-  },
-  {
-   "name": "16-509-8348",
-   "cst": "D8CCST500016",
-   "lot": "CJE765-00AF-00",
-   "pn": "6072J-8348F",
-   "model": "509",
-   "engineering": "Jig Loading",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000711063",
     "CJJ071110007",
     "C4M000711137",
     "C4M000711174",
@@ -540,7 +541,21 @@
     "C4M000711322",
     "C4M000711359",
     "C4M000711396",
-    "D8A000711433",
+    "D8A000711433"
+   ]
+  },
+  {
+   "name": "17-420A-6555",
+   "cst": "D8CCST500017",
+   "lot": "CJE765-00B0-00",
+   "pn": "6073J-6555C",
+   "model": "420A",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071147017",
     "C4M000711507",
     "C4M000711544",
@@ -550,20 +565,7 @@
     "C4M000711692",
     "C4M000711729",
     "C4M000711766",
-    "D8A000711803"
-   ]
-  },
-  {
-   "name": "17-184-8348",
-   "cst": "D8CCST500017",
-   "lot": "CJE765-00B0-00",
-   "pn": "6072J-8348G",
-   "model": "184",
-   "engineering": "Jig Loading",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000711803",
     "CJJ071184027",
     "C4M000711877",
     "C4M000711914",
@@ -573,7 +575,21 @@
     "C4M000712062",
     "C4M000712099",
     "C4M000712136",
-    "D8A000712173",
+    "D8A000712173"
+   ]
+  },
+  {
+   "name": "18-509N-6555",
+   "cst": "D8CCST500018",
+   "lot": "CJE765-00B1-00",
+   "pn": "6073J-6555D",
+   "model": "509N",
+   "engineering": "Jig 洗净及检查",
+   "engineeringCode": "9100",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ071221037",
     "C4M000712247",
     "C4M000712284",
@@ -583,20 +599,7 @@
     "C4M000712432",
     "C4M000712469",
     "C4M000712506",
-    "D8A000712543"
-   ]
-  },
-  {
-   "name": "18-420A-7727",
-   "cst": "D8CCST500018",
-   "lot": "CJE765-00B1-00",
-   "pn": "6073J-7727C",
-   "model": "420A",
-   "engineering": "Jig Unloading",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000712543",
     "CJJ071258047",
     "C4M000712617",
     "C4M000712654",
@@ -606,7 +609,21 @@
     "C4M000712802",
     "C4M000712839",
     "C4M000712876",
-    "D8A000712913",
+    "D8A000712913"
+   ]
+  },
+  {
+   "name": "19-502A-7748",
+   "cst": "D8CCST500019",
+   "lot": "CJE765-00B2-00",
+   "pn": "6072J-7748B",
+   "model": "502A",
+   "engineering": "PNP 2nd",
+   "engineeringCode": "09050",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ071295057",
     "C4M000712987",
     "C4M000713024",
@@ -616,20 +633,7 @@
     "C4M000713172",
     "C4M000713209",
     "C4M000713246",
-    "D8A000713283"
-   ]
-  },
-  {
-   "name": "19-508N-7727",
-   "cst": "D8CCST500019",
-   "lot": "CJE765-00B2-00",
-   "pn": "6073J-7727C",
-   "model": "508N",
-   "engineering": "Jig N判定 另外移载",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000713283",
     "CJJ071332067",
     "C4M000713357",
     "C4M000713394",
@@ -639,7 +643,21 @@
     "C4M000713542",
     "C4M000713579",
     "C4M000713616",
-    "D8A000713653",
+    "D8A000713653"
+   ]
+  },
+  {
+   "name": "20-420B-7748",
+   "cst": "D8CCST500020",
+   "lot": "CJE765-00B3-00",
+   "pn": "6072J-7748C",
+   "model": "420B",
+   "engineering": "Jig Unloading",
+   "engineeringCode": "51000",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ071369077",
     "C4M000713727",
     "C4M000713764",
@@ -649,20 +667,7 @@
     "C4M000713912",
     "C4M000713949",
     "C4M000713986",
-    "D8A000714023"
-   ]
-  },
-  {
-   "name": "20-477-3931",
-   "cst": "D8CCST500020",
-   "lot": "CJE765-00B3-00",
-   "pn": "6073J-3931C",
-   "model": "477",
-   "engineering": "Jig 分离",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000714023",
     "CJJ071406087",
     "C4M000714097",
     "C4M000714134",
@@ -672,7 +677,21 @@
     "C4M000714282",
     "C4M000714319",
     "C4M000714356",
-    "D8A000714393",
+    "D8A000714393"
+   ]
+  },
+  {
+   "name": "21-477-7748",
+   "cst": "D8CCST500021",
+   "lot": "CJE765-00B4-00",
+   "pn": "6072J-7748D",
+   "model": "477",
+   "engineering": "Jig N判定 另外移载",
+   "engineeringCode": "52000",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": true,
+   "jigIds": [
     "CJJ071443097",
     "C4M000714467",
     "C4M000714504",
@@ -682,20 +701,7 @@
     "C4M000714652",
     "C4M000714689",
     "C4M000714726",
-    "D8A000714763"
-   ]
-  },
-  {
-   "name": "21-252A-3931",
-   "cst": "D8CCST500021",
-   "lot": "CJE765-00B4-00",
-   "pn": "6073J-3931C",
-   "model": "252A",
-   "engineering": "目视Stage",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000714763",
     "CJJ071480009",
     "C4M000714837",
     "C4M000714874",
@@ -705,7 +711,21 @@
     "C4M000715022",
     "C4M000715059",
     "C4M000715096",
-    "D8A000715133",
+    "D8A000715133"
+   ]
+  },
+  {
+   "name": "22-430-6555",
+   "cst": "D8CCST500022",
+   "lot": "CJE765-00B5-00",
+   "pn": "6073J-6555B",
+   "model": "430",
+   "engineering": "Jig 分离",
+   "engineeringCode": "53000",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071517019",
     "C4M000715207",
     "C4M000715244",
@@ -715,20 +735,7 @@
     "C4M000715392",
     "C4M000715429",
     "C4M000715466",
-    "D8A000715503"
-   ]
-  },
-  {
-   "name": "22-502A-7742",
-   "cst": "D8CCST500022",
-   "lot": "CJE765-00B5-00",
-   "pn": "6072J-7742B",
-   "model": "502A",
-   "engineering": "Jig 搬出待机",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000715503",
     "CJJ071554029",
     "C4M000715577",
     "C4M000715614",
@@ -738,7 +745,21 @@
     "C4M000715762",
     "C4M000715799",
     "C4M000715836",
-    "D8A000715873",
+    "D8A000715873"
+   ]
+  },
+  {
+   "name": "23-502N-6555",
+   "cst": "D8CCST500023",
+   "lot": "CJE765-00B6-00",
+   "pn": "6073J-6555C",
+   "model": "502N",
+   "engineering": "目视Stage",
+   "engineeringCode": "54000",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071591039",
     "C4M000715947",
     "C4M000715984",
@@ -748,20 +769,7 @@
     "C4M000716132",
     "C4M000716169",
     "C4M000716206",
-    "D8A000716243"
-   ]
-  },
-  {
-   "name": "23-509N-7742",
-   "cst": "D8CCST500023",
-   "lot": "CJE765-00B6-00",
-   "pn": "6072J-7742C",
-   "model": "509N",
-   "engineering": "Jig搬出",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000716243",
     "CJJ071628049",
     "C4M000716317",
     "C4M000716354",
@@ -771,7 +779,21 @@
     "C4M000716502",
     "C4M000716539",
     "C4M000716576",
-    "D8A000716613",
+    "D8A000716613"
+   ]
+  },
+  {
+   "name": "24-256-6555",
+   "cst": "D8CCST500024",
+   "lot": "CJE765-00B7-00",
+   "pn": "6073J-6555D",
+   "model": "256",
+   "engineering": "Jig 搬出待机",
+   "engineeringCode": "8400",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071665059",
     "C4M000716687",
     "C4M000716724",
@@ -781,20 +803,7 @@
     "C4M000716872",
     "C4M000716909",
     "C4M000716946",
-    "D8A000716983"
-   ]
-  },
-  {
-   "name": "24-502N-6555",
-   "cst": "D8CCST500024",
-   "lot": "CJE765-00B7-00",
-   "pn": "6073J-6555B",
-   "model": "502N",
-   "engineering": "Jig入库",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": false,
-   "jigIds": [
+    "D8A000716983",
     "CJJ071702069",
     "C4M000717057",
     "C4M000717094",
@@ -804,7 +813,21 @@
     "C4M000717242",
     "C4M000717279",
     "C4M000717316",
-    "D8A000717353",
+    "D8A000717353"
+   ]
+  },
+  {
+   "name": "25-509-7748",
+   "cst": "D8CCST500025",
+   "lot": "CJE765-00B8-00",
+   "pn": "6072J-7748B",
+   "model": "509",
+   "engineering": "Jig搬出",
+   "engineeringCode": "55000",
+   "rows": 20,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071739079",
     "C4M000717427",
     "C4M000717464",
@@ -814,20 +837,7 @@
     "C4M000717612",
     "C4M000717649",
     "C4M000717686",
-    "D8A000717723"
-   ]
-  },
-  {
-   "name": "25-502-8348",
-   "cst": "D8CCST500025",
-   "lot": "CJE765-00B8-00",
-   "pn": "6072J-8348B",
-   "model": "502",
-   "engineering": "PNP",
-   "rows": 20,
-   "bonded": true,
-   "expectRed": true,
-   "jigIds": [
+    "D8A000717723",
     "CJJ071776089",
     "C4M000717797",
     "C4M000717834",
@@ -837,7 +847,21 @@
     "C4M000717982",
     "C4M000718019",
     "C4M000718056",
-    "D8A000718093",
+    "D8A000718093"
+   ]
+  },
+  {
+   "name": "26-262-6555",
+   "cst": "D8CCST500026",
+   "lot": "CJE765-00B9-00",
+   "pn": "6073J-6555B",
+   "model": "262",
+   "engineering": "Jig入库",
+   "engineeringCode": "56000",
+   "rows": 10,
+   "bonded": true,
+   "expectRed": false,
+   "jigIds": [
     "CJJ071813001",
     "C4M000718167",
     "C4M000718204",
