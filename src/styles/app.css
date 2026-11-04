@@ -144,6 +144,22 @@ textarea {
   color: var(--ink-3);
 }
 
+/*
+ * 作者署名: 常驻在状态轨最右端。
+ *
+ * 用竖规与"源 x 行"隔开, 字号比日志小一号, 不参与操作、也不抢
+ * 状态灯的注意力 —— 日常几乎看不见, 但需要时一直在那里。
+ */
+.rail__sign {
+  padding-left: 10px;
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  user-select: none;
+}
+
 /* 载入中的琥珀细进度条 */
 .rail__bar {
   width: 120px;
@@ -284,6 +300,21 @@ textarea {
   font-family: var(--font-ui);
 }
 
+/*
+ * 输入框外面包一层定位容器: 覆盖式滚动条要绝对定位到输入框右缘,
+ * 而 textarea 自身不能作为定位父级 (它的滚动内容会带着浮层一起动)。
+ */
+.side__field {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+
+.side__field > .side__input {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .side__input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
@@ -367,6 +398,20 @@ textarea {
 
 /* ============ 工序轨道 (记忆点) ============ */
 
+/*
+ * 轨道的定位容器: 覆盖式横向滚动条需要绝对定位到轨道底边, 而轨道
+ * 自身是滚动容器, 不能作为浮层的定位父级 (会跟着内容一起滚)。
+ *
+ * 它才是 .main (flex column) 的直接子项, 所以禁止收缩的逻辑放这里。
+ * overflow-x:auto 让轨道的自动最小高度被解析为 0, 不兜底会被表格
+ * 挤到 28px, 工序名和数量直接被裁掉。
+ */
+.rail-stages-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: min-content;
+}
+
 .rail-stages {
   display: flex;
   align-items: stretch;
@@ -376,19 +421,12 @@ textarea {
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   overflow-x: auto;
-  scrollbar-width: thin;
-  /*
-   * 必须禁止收缩。
-   *
-   * 本元素是 .main (flex column) 的直接子项, 默认 flex-shrink:1。
-   * 而 overflow-x:auto 让它成为滚动容器, 其自动最小尺寸 (min-height:auto)
-   * 被解析为 0 —— 于是表格一变高, flexbox 就从它身上扣高度: 实测轨道被
-   * 压到 28px (内容需要 55px), 工序名和数量直接被裁掉。
-   *
-   * 纵向本来就不该滚动, 交给 min-content 兜底即可。
-   */
-  flex: 0 0 auto;
-  min-height: min-content;
+  /* 原生横向条隐藏, 由覆盖式浮层接管 (见 .osb--h) */
+  scrollbar-width: none;
+}
+
+.rail-stages::-webkit-scrollbar {
+  display: none;
 }
 
 .stage {
@@ -482,6 +520,81 @@ textarea {
   overflow: auto;
 }
 
+/* ============ 覆盖式滚动条 ============ */
+/*
+ * 原生纵向滚动条占宽度, 原生横向条占高度, 静止时还一直露在外面。
+ * 两个方向都隐藏, 由 ui/OverlayScrollbar.tsx 画浮层, 只在滚动时出现。
+ */
+.grid-scroll {
+  scrollbar-width: none;
+}
+
+.grid-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.side__input,
+.dialog__body,
+.map__body {
+  scrollbar-width: none;
+}
+
+.side__input::-webkit-scrollbar,
+.dialog__body::-webkit-scrollbar,
+.map__body::-webkit-scrollbar {
+  display: none;
+}
+
+.osb {
+  position: absolute;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.osb--v {
+  width: 10px;
+}
+
+.osb--h {
+  height: 10px;
+}
+
+.osb[data-visible='true'] {
+  opacity: 1;
+}
+
+.osb__thumb {
+  position: absolute;
+  border-radius: 3px;
+  background: var(--ink-3);
+  opacity: 0.5;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.osb--v .osb__thumb {
+  right: 2px;
+  width: 6px;
+}
+
+.osb--h .osb__thumb {
+  bottom: 2px;
+  height: 6px;
+}
+
+.osb[data-visible='true'] .osb__thumb {
+  pointer-events: auto;
+}
+
+.osb[data-dragging='true'] .osb__thumb,
+.osb__thumb:hover {
+  background: var(--ink-2);
+  opacity: 0.9;
+}
+
 /* 空状态时没有内层 grid-scroll, 让 .empty 直接在 wrap 里居中 */
 .grid-wrap:has(> .empty) {
   display: grid;
@@ -507,25 +620,49 @@ textarea {
   font-size: 12.5px;
 }
 
+/*
+ * 表头整体 sticky, 而不是每个 .grid__th 各自 sticky。
+ *
+ * 逐格 sticky 时 (曾经是 display:contents + 单格 position:sticky), 每个格子
+ * 会被提升成独立的合成层, 各自按亚像素取整绘制底边 —— 滚动容器一旦真的
+ * 可滚动(数据行多到需要纵向滚动), 相邻列的 1px 底线就会落在不同的设备
+ * 像素上, 拼出一条带台阶/缝隙的横线。现在底线只画在表头容器上, 一条线
+ * 一次绘制, 无论滚动与否都连续。
+ */
 .grid__head {
-  display: contents;
-}
-
-.grid__th {
+  display: grid;
+  grid-template-columns: var(--cols);
+  grid-column: 1 / -1;
+  /* 宽度只到最后一列, 不伸进右侧留白, 底线与数据行等长 */
+  justify-self: start;
+  width: max-content;
   position: sticky;
   top: 0;
   z-index: 2;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.grid__th {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 8px 10px;
+  /*
+   * 固定行高, 不用 line-height: normal。
+   *
+   * normal 的行盒高度依赖字体度量, 常见值是 13.2px 这类小数, 于是表头
+   * 总高变成 29.2px —— 整个表格内容高度带小数。滚到底时 scrollHeight
+   * 取整, 冻结总计行的静态位置与 sticky 位置差出不到 1px, 表现就是
+   * "滑动到底总计行向上抬起一点"。用整数行高后, 表头 + 全部数据行 +
+   * 总计行的高度都是整数, 底部不再有亚像素落差。
+   */
+  line-height: 14px;
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.03em;
   white-space: nowrap;
   color: var(--ink-2);
-  background: var(--surface);
-  border-bottom: 1px solid var(--rule-strong);
 }
 
 .grid__body {
@@ -538,6 +675,51 @@ textarea {
   grid-template-columns: var(--cols);
   left: 0;
   will-change: transform;
+}
+
+/*
+ * 冻结的总计行。
+ *
+ * 放在 .grid 之后、.grid-scroll 之内: 正常流里它占一个行高 (所以滚动
+ * 范围与原来一致), sticky 让它在滚动时一直贴在可视区底部, 横向则随
+ * 表格一起移动。宽度按列内容撑开, 与表头共同使用 --cols。
+ */
+.grid__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  width: max-content;
+  min-width: 100%;
+}
+
+/*
+ * 冻结行贴着表格底部时, 本身不要再画底边。
+ *
+ * .grid__td 默认带 1px border-bottom, 而它正下方就是 .grid-wrap 的 1px
+ * 外框 —— 两条线紧挨着, 看起来像外框被加粗/覆盖了。滚到底时表格的
+ * 最底边由外框负责, 冻结行去掉自己的底边即可。
+ */
+.grid__foot .grid__td {
+  border-bottom: 0;
+}
+
+/*
+ * 内容不足一屏时, 总计行停在内容末尾, 下方还有空白, 没有外框可借,
+ * 这时给它补上下两条框线, 把这一行封口。
+ *
+ * 上框线与最后一条明细的底边贴在一起, 两条会叠成双线 —— 所以同时把
+ * 最后一条明细的底边去掉, 只留一条。
+ */
+.grid__foot--end .grid__td {
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.grid-wrap[data-freeze='true'][data-vscroll='false']
+  .grid__body
+  > .grid__tr:last-child
+  .grid__td {
+  border-bottom: 0;
 }
 
 .grid__td {
@@ -613,11 +795,16 @@ textarea {
   background: var(--band);
 }
 
-/* ---- 总计行: 上下双横线 (表格排版惯例, 天然读作底线) ---- */
+/* ---- 总计行: 只靠字重 + 底色区分, 不再画分隔线 ---- */
 
 .grid__tr.is-total .grid__td {
   font-weight: 650;
-  border-top: 3px double var(--rule-strong);
+  background: var(--band);
+}
+
+/* 悬停时保持同样的底色, 避免总计行在鼠标扫过时又退回普通行的浅灰 */
+.grid__tr.is-total:hover .grid__td {
+  background: var(--band);
 }
 
 .grid__tr.is-total .grid__td--idx {
@@ -983,6 +1170,8 @@ textarea {
   border-radius: 7px;
   box-shadow: 0 18px 48px rgba(16, 19, 24, 0.24);
   overflow: hidden;
+  /* 覆盖式滚动条以对话框为定位父级, 高度对齐 .dialog__body */
+  position: relative;
 }
 
 .dialog__body {
@@ -1130,6 +1319,10 @@ textarea {
   font-weight: 650;
   letter-spacing: 0.05em;
   color: var(--ink-2);
+}
+
+.map__body-wrap {
+  position: relative;
 }
 
 .map__body {

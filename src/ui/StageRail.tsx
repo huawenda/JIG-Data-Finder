@@ -1,5 +1,7 @@
+import { useRef } from 'react'
 import type { AppConfig } from '../core/config'
 import type { Table } from '../core/table'
+import OverlayScrollbar from './OverlayScrollbar'
 
 export interface StageRailProps {
   table: Table
@@ -17,6 +19,7 @@ export interface StageRailProps {
  */
 export default function StageRail({ table, config }: StageRailProps) {
   const stageNames = useMemoStageOrder(config)
+  const scrollRef = useRef<HTMLDivElement>(null)
   if (stageNames.length === 0) return null
 
   const totalRow = table.rows[table.rows.length - 1]
@@ -35,33 +38,41 @@ export default function StageRail({ table, config }: StageRailProps) {
   const lead = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 
   return (
-    <div className="rail-stages" role="list" aria-label="工序分布">
-      {stageNames.map((name) => {
-        const n = counts.get(name) ?? 0
-        const empty = n === 0
-        // 0-4 档映射到透明度, 避免每道工序都画一条同长度的条
-        const weight = n === 0 ? 0 : 0.25 + 0.75 * (n / peak)
+    <div className="rail-stages-wrap">
+      <div
+        className="rail-stages"
+        ref={scrollRef}
+        role="list"
+        aria-label="工序分布"
+      >
+        {stageNames.map((name) => {
+          const n = counts.get(name) ?? 0
+          const empty = n === 0
+          // 0-4 档映射到透明度, 避免每道工序都画一条同长度的条
+          const weight = n === 0 ? 0 : 0.25 + 0.75 * (n / peak)
 
-        return (
-          <div
-            key={name}
-            role="listitem"
-            className="stage"
-            data-empty={empty}
-            data-active={!empty}
-            data-lead={name === lead && !empty}
-            title={`${name}: ${n}`}
-          >
+          return (
             <div
-              className="stage__bar"
-              style={{ opacity: weight }}
-              aria-hidden="true"
-            />
-            <div className="stage__name">{name}</div>
-            <div className="stage__count">{n}</div>
-          </div>
-        )
-      })}
+              key={name}
+              role="listitem"
+              className="stage"
+              data-empty={empty}
+              data-active={!empty}
+              data-lead={name === lead && !empty}
+              title={`${name}: ${n}`}
+            >
+              <div
+                className="stage__bar"
+                style={{ opacity: weight }}
+                aria-hidden="true"
+              />
+              <div className="stage__name">{name}</div>
+              <div className="stage__count">{n}</div>
+            </div>
+          )
+        })}
+      </div>
+      <OverlayScrollbar targetRef={scrollRef} axis="horizontal" />
     </div>
   )
 }

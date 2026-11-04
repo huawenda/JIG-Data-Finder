@@ -3,8 +3,15 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { config as globalConfig, mergeConfig, applyConfig } from './core/config'
 import type { AppConfig } from './core/config'
-import { drillPivotRows, generatePivot, SUMMARY_CST } from './core/pivot'
-import type { PivotDrillKey } from './core/pivot'
+import {
+  countStageCategories,
+  drillPivotRows,
+  filterRowsByStageCategory,
+  generatePivot,
+  preparePivotRows,
+  SUMMARY_CST,
+} from './core/pivot'
+import type { PivotDrillKey, StageCategory } from './core/pivot'
 import { buildDetailTable, queryData, processSourceData, NOT_FOUND } from './core/query'
 import { processClipboardContent } from './core/clipboard'
 import { rulesFromConfig } from './core/validate'
@@ -23,6 +30,7 @@ import type { Row, Table } from './core/table'
 import { emptyTable } from './core/table'
 
 import Grid from './ui/Grid'
+import OverlayScrollbar from './ui/OverlayScrollbar'
 import StageRail from './ui/StageRail'
 import SettingsDialog from './ui/SettingsDialog'
 import type { SettingsDraft } from './ui/SettingsDialog'
@@ -39,6 +47,7 @@ import {
   readConfigFile,
   writeConfigFile,
   setWindowTheme,
+  setWindowTitle,
   withTimestamp,
 } from './ui/bridge'
 import type { PickedFile } from './ui/bridge'
@@ -47,6 +56,14 @@ import './styles/app.css'
 
 type TabId = 'detail' | 'queryPivot' | 'pivot' | 'review'
 type Status = 'idle' | 'ready' | 'busy' | 'error'
+
+/** 标签页文案: 标签栏、窗口标题、导出按钮共用, 避免三处漂移 */
+const TAB_LABELS: Record<TabId, string> = {
+  detail: '查询结果',
+  queryPivot: '结果透视',
+  pivot: '全量透视',
+  review: '数据审查',
+}
 /**
  * 全量透视的显示范围。
  *
@@ -55,6 +72,18 @@ type Status = 'idle' | 'ready' | 'busy' | 'error'
  * 当前到底生效了哪个。
  */
 type PivotScope = 'all' | 'prod' | `pn:${string}`
+
+/**
+ * 全量透视的可用性筛选。
+ *
+ * 分类对象是工程列: 「可用」只保留五道可用工序的列与计数, 「非可用」
+ * 只保留其余工序; 计数按当前显示范围内的 JIG 记录数统计。
+ */
+const PIVOT_AVAIL_OPTIONS: { id: StageCategory; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'available', label: '可用' },
+  { id: 'unavailable', label: '非可用' },
+]
 
 /**
  * 透视下钻的当前定位。
@@ -124,6 +153,7 @@ export default function App() {
   const [pivotAll, setPivotAll] = useState<Table>(EMPTY_PIVOT)
   const [pivotProd, setPivotProd] = useState<Table>(EMPTY_PIVOT)
   const [pivotScope, setPivotScope] = useState<PivotScope>('all')
+  const [pivotAvail, setPivotAvail] = useState<StageCategory>('all')
 
   // 查询结果
   const [detail, setDetail] = useState<Table>(EMPTY_PIVOT)
@@ -170,6 +200,7 @@ export default function App() {
     return readCachedTheme() ?? cfg.theme
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // ---- 启动: 读配置 + 同步关闭到托盘开关给宿主层 ----
   useEffect(() => {
@@ -279,6 +310,7 @@ export default function App() {
         setDrill(null)
         // 之前选中的 P/N 未必还在新数据里, 范围退回"全部数据"
         setPivotScope('all')
+        setPivotAvail('all')
 
         setCanQuery(true)
         setStatus('ready')
@@ -533,22 +565,38 @@ export default function App() {
   const pivotPn = pivotScope.startsWith('pn:') ? pivotScope.slice(3) : ''
 
   /*
-   * 当前透视实际使用的行。选某个 P/N 时先按 P/N 收窄, 再重新生成透视,
-   * 而不是只把现有透视表的行筛一筛 —— 后者的总计行仍是全表的数, 与
-   * 可见内容矛盾, 下钻也会跟着错。
+   * 分段按钮上的计数: 先按"显示范围"取行 (生产中 / 单个 P/N), 再分两档。
+   * 用 preparePivotRows 与透视表保持同一口径 (CST 回填 / 生产中筛选 /
+   * 工序黑名单), 所以计数等于当前透视表总计行的总和。
    */
-  const pivotBaseRows = useMemo(
-    () =>
-      pivotPn
-        ? activeSourceRows.filter((r) => r['P/N'] === pivotPn)
-        : activeSourceRows,
-    [activeSourceRows, pivotPn],
+  const pivotCountRows = useMemo(() => {
+    const rows = preparePivotRows(activeSourceRows, pivotScope === 'prod', cfg)
+    return pivotPn ? rows.filter((r) => r['P/N'] === pivotPn) : rows
+  }, [activeSourceRows, pivotScope, pivotPn, cfg])
+
+  const pivotAvailCounts = useMemo(
+    () => countStageCategories(pivotCountRows, cfg),
+    [pivotCountRows, cfg],
   )
 
+  /*
+   * 当前透视实际使用的行: P/N 范围 + 工程可用性。
+   * 透视表与下钻共用这批行, 所以单元格计数与明细行数保持一致。
+   */
+  const pivotBaseRows = useMemo(() => {
+    const rows = pivotPn
+      ? activeSourceRows.filter((r) => r['P/N'] === pivotPn)
+      : activeSourceRows
+    return filterRowsByStageCategory(rows, pivotAvail, cfg)
+  }, [activeSourceRows, pivotPn, pivotAvail, cfg])
+
   const currentPivot = useMemo(() => {
-    if (!pivotPn) return pivotScope === 'prod' ? pivotProd : pivotAll
-    return generatePivot(pivotBaseRows, false, cfg)
-  }, [pivotPn, pivotScope, pivotAll, pivotProd, pivotBaseRows, cfg])
+    // 没有额外筛选时直接用加载时算好的两张表, 避免每次渲染重算
+    if (!pivotPn && pivotAvail === 'all') {
+      return pivotScope === 'prod' ? pivotProd : pivotAll
+    }
+    return generatePivot(pivotBaseRows, pivotScope === 'prod', cfg)
+  }, [pivotPn, pivotAvail, pivotScope, pivotAll, pivotProd, pivotBaseRows, cfg])
 
   // 下拉框的 P/N 候选项: 取透视小计行的 P/N, 顺序与表格一致
   const pivotPnOptions = useMemo(() => {
@@ -647,10 +695,15 @@ export default function App() {
     [drill, drillRows, cfg],
   )
 
-  // 明细同样可以标出尺寸不匹配, 与查询结果页共用同一套分类
+  /*
+   * 透视明细默认标出尺寸不匹配。
+   *
+   * 与数据审查页同一口径 —— 这一页就是用来核对下钻结果的, 若跟随查询
+   * 结果页的开关, 用户没勾选时看到的是一片"全部匹配", 容易误判。
+   */
   const drillFlags = useMemo(
-    () => (sizeValidation ? mismatchFlags(drillTable) : []),
-    [sizeValidation, mismatchFlags, drillTable],
+    () => mismatchFlags(drillTable),
+    [mismatchFlags, drillTable],
   )
 
   // Esc 退出明细
@@ -662,6 +715,19 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [drill])
+
+  /*
+   * 原生窗口标题跟随当前页, 只显示页名, 不带应用名。
+   *
+   * Tauri 的系统标题栏不会跟随 document.title, 必须显式调 setTitle;
+   * document.title 同步写一份, 让浏览器回退模式也一致。
+   * 下钻明细也带上, 否则切到明细后标题还停在"全量透视"。
+   */
+  useEffect(() => {
+    const title = drillActive ? '透视明细' : TAB_LABELS[tab]
+    document.title = title
+    void setWindowTitle(title)
+  }, [tab, drillActive])
 
   // ---- 导出 ----
   const exportCurrent = useCallback(async () => {
@@ -825,10 +891,10 @@ export default function App() {
   }, [reviewAll.rows.length, reviewByPn.rows.length, reviewScope])
 
   const TABS: { id: TabId; label: string; count: number }[] = [
-    { id: 'detail', label: '查询结果', count: detail.rows.length },
-    { id: 'queryPivot', label: '结果透视', count: queryPivot.rows.length },
-    { id: 'pivot', label: '全量透视', count: currentPivot.rows.length },
-    { id: 'review', label: '数据审查', count: reviewTable.rows.length },
+    { id: 'detail', label: TAB_LABELS.detail, count: detail.rows.length },
+    { id: 'queryPivot', label: TAB_LABELS.queryPivot, count: queryPivot.rows.length },
+    { id: 'pivot', label: TAB_LABELS.pivot, count: currentPivot.rows.length },
+    { id: 'review', label: TAB_LABELS.review, count: reviewTable.rows.length },
   ]
   return (
     <div className="app">
@@ -906,16 +972,20 @@ export default function App() {
               清空
             </button>
           </div>
-          <textarea
-            className="side__input"
-            value={input}
-            placeholder={'在此粘贴 Jig ID,每行一个\n也支持从邮件正文直接粘贴'}
-            onChange={(e) => setInput(e.target.value)}
-            onPaste={onPaste}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runQuery()
-            }}
-          />
+          <div className="side__field">
+            <textarea
+              ref={inputRef}
+              className="side__input"
+              value={input}
+              placeholder={'在此粘贴 Jig ID,每行一个\n也支持从邮件正文直接粘贴'}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={onPaste}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runQuery()
+              }}
+            />
+            <OverlayScrollbar targetRef={inputRef} />
+          </div>
           <div>
             <button
               className="btn btn--primary btn--tall"
@@ -990,7 +1060,7 @@ export default function App() {
                 ))}
               </nav>
               <span className="toolbar__spacer" />
-              {sizeValidation && drillFlags.some(Boolean) && (
+              {drillFlags.some(Boolean) && (
                 <span className="toolbar__label">
                   尺寸不匹配 {drillFlags.filter(Boolean).length} 行
                 </span>
@@ -1035,6 +1105,22 @@ export default function App() {
                 ))}
               </select>
               <span className="toolbar__spacer" />
+              <div className="scope" role="group" aria-label="可用性">
+                {PIVOT_AVAIL_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    className="scope__btn"
+                    type="button"
+                    aria-pressed={pivotAvail === o.id}
+                    onClick={() => setPivotAvail(o.id)}
+                  >
+                    {o.label}
+                    <span className="scope__count">
+                      {pivotAvailCounts[o.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1117,8 +1203,16 @@ export default function App() {
               rowHeight={cfg.tableDefaultRowHeight}
               pinLastColumn={cfg.keywordTotal}
               onCellClick={openDrill}
-              emptyTitle="还没有加载源数据"
-              emptyHint="选择 MES 导出的 Excel 文件开始。支持 .xlsx 与 .xls, 程序只读取不修改源文件。"
+              emptyTitle={
+                pivotAvail === 'all'
+                  ? '还没有加载源数据'
+                  : `当前范围内没有「${pivotAvail === 'available' ? '可用' : '非可用'}」工程的记录`
+              }
+              emptyHint={
+                pivotAvail === 'all'
+                  ? '选择 MES 导出的 Excel 文件开始。支持 .xlsx 与 .xls, 程序只读取不修改源文件。'
+                  : '切换可用性筛选或显示范围试试。'
+              }
             />
           ) : null}
           {tab === 'review' && (
@@ -1172,6 +1266,9 @@ export default function App() {
             行
           </span>
         )}
+        <span className="rail__sign" title="作者">
+          huawenda
+        </span>
       </footer>
 
       {toast && (

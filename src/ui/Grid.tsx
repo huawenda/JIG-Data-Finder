@@ -1,8 +1,9 @@
-import type { CSSProperties } from 'react'
-import { useMemo, useRef } from 'react'
+import type { CSSProperties, Key } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Row, Table } from '../core/table'
 import { SUMMARY_CST } from '../core/pivot'
+import OverlayScrollbar from './OverlayScrollbar'
 
 export interface GridProps {
   table: Table
@@ -243,8 +244,21 @@ export default function Grid({
     })
   }, [table, isEmpty])
 
+  /*
+   * 总计行冻结。
+   *
+   * 透视表最后一行的 P/N 是「总计」, 这是全表汇总, 用户横向扫读时也希望
+   * 一直看到它。冻结做法: 把该行从虚拟列表里摘出来 (count 减一), 另画
+   * 一条 position:sticky;bottom:0 的行 —— 它在正常流里仍占一个行高,
+   * 所以滚动范围与原来完全一致, 滑到底时不会压住最后一条明细。
+   */
+  const freezeTotal =
+    table.rows.length > 0 &&
+    isTotal(table.rows[table.rows.length - 1], keywordTotal)
+  const dataCount = freezeTotal ? table.rows.length - 1 : table.rows.length
+
   const virtualizer = useVirtualizer({
-    count: table.rows.length,
+    count: dataCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: OVERSCAN,
@@ -303,6 +317,32 @@ export default function Grid({
   ].join(' ')
 
   /*
+   * 内容是否真的需要纵向滚动。
+   *
+   * 冻结总计行有两种形态:
+   *   - 内容超过一屏 -> 吸在滚动容器底部, 底边由表格外框负责;
+   *   - 内容不足一屏 -> 停在内容末尾, 下方是空白, 需要自己补上下框线。
+   */
+  const [vScrollable, setVScrollable] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const check = () => setVScrollable(el.scrollHeight - el.clientHeight > 1)
+    check()
+    const ro =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(check)
+    ro?.observe(el)
+    window.addEventListener('resize', check)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', check)
+    }
+  }, [table, rowHeight, freezeTotal])
+
+  /*
    * 空状态必须放在所有 Hook 之后。
    *
    * 之前它写在使用 ResizeObserver 的 useLayoutEffect 之前, 于是
@@ -322,8 +362,109 @@ export default function Grid({
     )
   }
 
+  /*
+   * 渲染一行。
+   *
+   * 虚拟行与冻结的总计行共用这一段: 列结构、可点击判定、尺寸标红必须
+   * 完全一致, 区别只在外部传入的定位样式。
+   */
+  const renderRow = (
+    row: Row,
+    rowIndex: number,
+    key: Key,
+    style: CSSProperties,
+    extraClass = '',
+  ) => {
+    const sub = isSubtotal(row)
+    const total = isTotal(row, keywordTotal)
+    const bad = mismatchFlags?.[rowIndex] === true
+
+    return (
+      <div
+        key={key}
+        role="row"
+        className={[
+          'grid__tr',
+          extraClass,
+          sub ? 'is-sub' : '',
+          total ? 'is-total' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        style={style}
+      >
+        {showRowNumbers && (
+          <div className="grid__td grid__td--idx">{rowIndex + 1}</div>
+        )}
+        {table.columns.map((c, ci) => {
+          /*
+           * ci 就是 table.columns 的下标, 与 sizeIdx / pinIdx
+           * 同处一个坐标空间, 不能减 offset。
+           *
+           * 早先这里写了 `const realIdx = ci - offset`, 理由大概是
+           * 想抵消行号列, 但 table.columns.map 根本不包含行号列,
+           * 多减一次导致后面每一列的判定都错位一格: 显示行号的表
+           * (明细/审查页) 里 isSize 永远为 false, 尺寸验证的红字
+           * 一行都不会出现 —— 而透视页 showRowNumbers=false 时
+           * offset 恰为 0, 反而正常, 所以只有这两页坏掉, 很容易
+           * 误判成数据或开关的问题。
+           */
+          const isSize = sizeIdx >= 0 && ci === sizeIdx
+          const isLast = ci === table.columns.length - 1
+          /*
+           * 只有"非空计数格"可点。透视表把 0 写成空串, 所以空串
+           * 本身就代表"这里没有数据", 点开只会看到空明细。
+           * P/N 与 CST ID 是标识列, 不属于计数。
+           */
+          const value = row[c] ?? ''
+          const drillable =
+            onCellClick !== undefined &&
+            value !== '' &&
+            !IDENTITY_COLUMNS.has(c)
+          const cls = [
+            isNumericColumn(c) ? 'num' : '',
+            isSize && bad ? 'bad bad-bg' : '',
+            /*
+             * 汇总列: 数字右对齐 + 左侧竖规。
+             * 右对齐是报表惯例 —— 数字位数不同时个位能扫成
+             * 一条竖线; 竖规则把它与明细列在视觉上分开。
+             */
+            ci === pinIdx ? 'grid__td--total' : '',
+            // 末列右缘竖规, 与表头对齐, 封闭表格 (见上方说明)
+            isLast ? 'grid__td--edge' : '',
+            drillable ? 'grid__td--drill' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+
+          const title = drillable
+            ? '点击查看明细'
+            : isSize && bad && pnColumn
+              ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
+              : undefined
+
+          return (
+            <div
+              key={c}
+              className={cls ? `grid__td ${cls}` : 'grid__td'}
+              title={title}
+              onClick={drillable ? () => onCellClick(rowIndex, c) : undefined}
+            >
+              {cell(row[c])}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
-    <div className="grid-wrap" ref={wrapRef}>
+    <div
+      className="grid-wrap"
+      ref={wrapRef}
+      data-vscroll={vScrollable}
+      data-freeze={freezeTotal}
+    >
       <div className="grid-scroll" ref={scrollRef}>
         {/*
           用 CSS Grid 而不是 <table>。
@@ -366,101 +507,32 @@ export default function Grid({
           </div>
 
           <div className="grid__body" style={{ height: totalH }}>
-            {items.map((vi) => {
-              const row = table.rows[vi.index]
-              const sub = isSubtotal(row)
-              const total = isTotal(row, keywordTotal)
-              const bad = mismatchFlags?.[vi.index] === true
-
-              return (
-                <div
-                  key={vi.key}
-                  role="row"
-                  className={[
-                    'grid__tr',
-                    sub ? 'is-sub' : '',
-                    total ? 'is-total' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: vi.size,
-                    transform: `translateY(${vi.start}px)`,
-                  }}
-                >
-                  {showRowNumbers && (
-                    <div className="grid__td grid__td--idx">{vi.index + 1}</div>
-                  )}
-                  {table.columns.map((c, ci) => {
-                    /*
-                     * ci 就是 table.columns 的下标, 与 sizeIdx / pinIdx
-                     * 同处一个坐标空间, 不能减 offset。
-                     *
-                     * 早先这里写了 `const realIdx = ci - offset`, 理由大概是
-                     * 想抵消行号列, 但 table.columns.map 根本不包含行号列,
-                     * 多减一次导致后面每一列的判定都错位一格: 显示行号的表
-                     * (明细/审查页) 里 isSize 永远为 false, 尺寸验证的红字
-                     * 一行都不会出现 —— 而透视页 showRowNumbers=false 时
-                     * offset 恰为 0, 反而正常, 所以只有这两页坏掉, 很容易
-                     * 误判成数据或开关的问题。
-                     */
-                    const isSize = sizeIdx >= 0 && ci === sizeIdx
-                    const isLast = ci === table.columns.length - 1
-                    /*
-                     * 只有"非空计数格"可点。透视表把 0 写成空串, 所以空串
-                     * 本身就代表"这里没有数据", 点开只会看到空明细。
-                     * P/N 与 CST ID 是标识列, 不属于计数。
-                     */
-                    const value = row[c] ?? ''
-                    const drillable =
-                      onCellClick !== undefined &&
-                      value !== '' &&
-                      !IDENTITY_COLUMNS.has(c)
-                    const cls = [
-                      isNumericColumn(c) ? 'num' : '',
-                      isSize && bad ? 'bad bad-bg' : '',
-                      /*
-                       * 汇总列: 数字右对齐 + 左侧竖规。
-                       * 右对齐是报表惯例 —— 数字位数不同时个位能扫成
-                       * 一条竖线; 竖规则把它与明细列在视觉上分开。
-                       */
-                      ci === pinIdx ? 'grid__td--total' : '',
-                      // 末列右缘竖规, 与表头对齐, 封闭表格 (见上方说明)
-                      isLast ? 'grid__td--edge' : '',
-                      drillable ? 'grid__td--drill' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')
-
-                    const title = drillable
-                      ? '点击查看明细'
-                      : isSize && bad && pnColumn
-                        ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
-                        : undefined
-
-                    return (
-                      <div
-                        key={c}
-                        className={cls ? `grid__td ${cls}` : 'grid__td'}
-                        title={title}
-                        onClick={
-                          drillable ? () => onCellClick(vi.index, c) : undefined
-                        }
-                      >
-                        {cell(row[c])}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
+            {items.map((vi) =>
+              renderRow(table.rows[vi.index], vi.index, vi.key, {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: vi.size,
+                transform: `translateY(${vi.start}px)`,
+              }),
+            )}
           </div>
         </div>
+
+        {/* 冻结的总计行: sticky 在滚动容器底部, 横向随表格一起滚动 */}
+        {freezeTotal &&
+          renderRow(
+            table.rows[table.rows.length - 1],
+            table.rows.length - 1,
+            'grid-total',
+            // 冻结行在 .grid 之外, 拿不到继承的 --cols, 这里显式带上
+            { height: rowHeight, '--cols': colTemplate } as CSSProperties,
+            vScrollable ? 'grid__foot' : 'grid__foot grid__foot--end',
+          )}
       </div>
+      <OverlayScrollbar targetRef={scrollRef} />
+      <OverlayScrollbar targetRef={scrollRef} axis="horizontal" />
     </div>
   )
 }

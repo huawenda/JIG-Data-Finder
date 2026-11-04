@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JIG Data Finder — 选定图标</title>
+<style>
+  :root {
+    --ink: #16191d;
+    --ink-2: #5b6472;
+    --ink-3: #8a93a0;
+    --rule: #dde2e8;
+    --board: #edeff2;
+    --surface: #ffffff;
+    --accent: #0d5c63;
+    --accent-soft: #e3f0f0;
+    --font: 'Segoe UI Variable Display', 'Microsoft YaHei UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 32px 64px;
+    background: var(--board); color: var(--ink);
+    font-family: var(--font); -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 860px; margin: 0 auto; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .lede { margin: 0 0 26px; color: var(--ink-2); font-size: 13.5px; line-height: 1.75; max-width: 66ch; }
+
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  .stages { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); }
+  .stage { padding: 34px; display: flex; align-items: center; justify-content: center; }
+  .stage--dark { background: #14171b; }
+  .stage--light { background: #edeff2; }
+  .stage img { width: 240px; height: 240px; display: block; }
+
+  .ladder { display: flex; align-items: flex-end; gap: 30px; padding: 22px 26px; border-top: 1px solid var(--rule); }
+  .ladder__item { text-align: center; color: var(--ink-3); font-size: 10.5px; }
+  .ladder__item img { display: block; margin: 0 auto 6px; }
+  .s64 img { width: 64px; height: 64px; }
+  .s48 img { width: 48px; height: 48px; }
+  .s32 img { width: 32px; height: 32px; }
+  .s16 img { width: 16px; height: 16px; }
+
+  .body { padding: 20px 24px 24px; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+  .body strong { color: var(--ink); font-weight: 600; }
+  .body ul { margin: 8px 0 0; padding-left: 18px; }
+  .body li { margin-bottom: 5px; }
+  .done {
+    margin-top: 24px; padding: 16px 20px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 6px;
+    font-size: 12.5px; line-height: 1.8; color: var(--ink-2);
+  }
+  .done code { color: var(--ink); }
+  .foot { margin-top: 20px; font-size: 11.5px; color: var(--ink-3); line-height: 1.8; }
+  .foot code { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="eyebrow">JIG Data Finder · 图标定稿</div>
+  <h1>定位格</h1>
+  <p class="lede">
+    九宫格数据矩阵 + 实心命中格 + 定位环。深孔雀石绿底、冷白前景，没有多余彩色：
+    一眼是"在一堆格子里找到那一条"，与透视表计数格下钻的交互直接对应。
+  </p>
+
+  <div class="card">
+    <div class="stages">
+      <div class="stage stage--dark"><img src="concept-a-target.svg" alt="定位格 深色底" /></div>
+      <div class="stage stage--light"><img src="concept-a-target.svg" alt="定位格 浅色底" /></div>
+    </div>
+    <div class="ladder">
+      <div class="ladder__item s64"><img src="concept-a-target.svg" alt="" />64</div>
+      <div class="ladder__item s48"><img src="concept-a-target.svg" alt="" />48</div>
+      <div class="ladder__item s32"><img src="concept-a-target.svg" alt="" />32</div>
+      <div class="ladder__item s16"><img src="concept-a-target.svg" alt="" />16</div>
+    </div>
+    <div class="body">
+      <strong>构成</strong>
+      <ul>
+        <li>九宫格：MES 数据矩阵，细线只作纹理，不抢主体。</li>
+        <li>实心格：命中的那一条记录。</li>
+        <li>定位环：检索 / 定位，同时把中心格框成视觉焦点。</li>
+        <li>16px 时网格淡出，剩下"环 + 亮点"，仍可识别。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="done">
+    已生成并替换 <code>src-tauri/icons/</code> 下的 <code>32x32.png / 128x128.png / 128x128@2x.png / icon.png / icon.ico</code>；
+    源文件保留在 <code>docs/icon-drafts/concept-a-target.svg</code>，后续改图后重跑
+    <code>npx tauri icon docs/icon-drafts/concept-a-target.svg</code> 即可。
+  </div>
+
+  <p class="foot">
+    深色底预览对应 Windows 深色任务栏，浅色底对应浅色任务栏；两种底色下中心格与定位环都有足够对比。<br />
+    图标为 512×512 矢量稿，四角透明（圆角外不填充），与 Windows 11 的应用图标规范一致。
+  </p>
+</div>
+</body>
+</html>

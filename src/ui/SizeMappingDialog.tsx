@@ -21,6 +21,7 @@ import {
   validateMappingPairs,
 } from '../core/mapping'
 import type { MappingPair } from '../core/mapping'
+import OverlayScrollbar from './OverlayScrollbar'
 
 export interface SizeMappingDialogProps {
   config: AppConfig
@@ -45,6 +46,7 @@ export default function SizeMappingDialog({
   const errorCount = Object.keys(errors).length
 
   const bodyRef = useRef<HTMLDivElement>(null)
+  const dialogBodyRef = useRef<HTMLDivElement>(null)
   const rowRefs = useRef<(HTMLDivElement | null)[]>([])
 
   /*
@@ -126,7 +128,7 @@ export default function SizeMappingDialog({
         aria-modal="true"
         aria-labelledby="map-title"
       >
-        <div className="dialog__body">
+        <div className="dialog__body" ref={dialogBodyRef}>
           <h2 className="dialog__title" id="map-title">
             型号尺寸匹配
           </h2>
@@ -139,7 +141,8 @@ export default function SizeMappingDialog({
               <span className="map__col map__col--act" />
             </div>
 
-            <div className="map__body" ref={bodyRef}>
+            <div className="map__body-wrap">
+              <div className="map__body" ref={bodyRef}>
               {pairs.length === 0 ? (
                 <p className="map__empty">还没有任何映射规则, 点下方「新增」开始添加。</p>
               ) : (
@@ -231,6 +234,8 @@ export default function SizeMappingDialog({
                   </div>
                 ))
               )}
+              </div>
+              <OverlayScrollbar targetRef={bodyRef} />
             </div>
           </div>
 
@@ -251,6 +256,8 @@ export default function SizeMappingDialog({
             <p className="map__note">存在重复或空型号, 修正后才能保存。</p>
           )}
         </div>
+
+        <OverlayScrollbar targetRef={dialogBodyRef} />
 
         <div className="dialog__foot">
           <button className="btn" type="button" onClick={onClose}>

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppConfig } from '../core/config'
 import type { ThemeMode } from '../core/theme'
 import { THEME_OPTIONS, prefersDark, themeLabel } from '../core/theme'
+import OverlayScrollbar from './OverlayScrollbar'
 
 export interface SettingsDraft {
   defaultFileDialogPath: string
@@ -42,6 +43,7 @@ export default function SettingsDialog({
   onThemePreview,
 }: SettingsDialogProps) {
   const [d, setD] = useState<SettingsDraft>(initial)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   const patch = (p: Partial<SettingsDraft>) => setD((prev) => ({ ...prev, ...p }))
 
@@ -88,7 +90,7 @@ export default function SettingsDialog({
         aria-modal="true"
         aria-labelledby="set-title"
       >
-        <div className="dialog__body">
+        <div className="dialog__body" ref={bodyRef}>
           <h2 className="dialog__title" id="set-title">
             设置
           </h2>
@@ -312,6 +314,8 @@ export default function SettingsDialog({
             </div>
           </fieldset>
         </div>
+
+        <OverlayScrollbar targetRef={bodyRef} />
 
         <div className="dialog__foot">
           <button className="btn" type="button" onClick={closeWithoutSave}>

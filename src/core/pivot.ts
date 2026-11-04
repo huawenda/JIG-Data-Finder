@@ -24,6 +24,71 @@ import { emptyTable } from './table'
 export const SUMMARY_CST = '--'
 
 /**
+ * 「可用」工程的集合。
+ *
+ * 现场口径: JIG 出现在 PNP / PNP 2nd / Jig 洗净及检查 / Jig Loading /
+ * Jig Unloading 这几道工序时算"可用"; 其余工序 (N判定、分离、目视、
+ * 待机、搬出、入库) 的记录算"非可用"。
+ *
+ * 工程名取自 cfg.pivotColumnKey (默认「工程名」), 与透视表列头一致。
+ */
+export const AVAILABLE_STAGES: ReadonlySet<string> = new Set([
+  'PNP',
+  'PNP 2nd',
+  'Jig 洗净及检查',
+  'Jig Loading',
+  'Jig Unloading',
+])
+
+/**
+ * 可用性筛选的档位。
+ *
+ * 注意分类对象是**工程 (透视表的列)**, 不是 P/N: 选「可用」时透视表
+ * 只保留这五道工序的列与计数, 其余工序的行整体不参与汇总。
+ */
+export type StageCategory = 'all' | 'available' | 'unavailable'
+
+/**
+ * 按工程可用性筛行。
+ *
+ * 透视表的一行代表一条 JIG 记录, 其工程名决定它落在哪一档:
+ * 可用工程 -> 'available', 其余 -> 'unavailable'。
+ */
+export function filterRowsByStageCategory(
+  rows: ReadonlyArray<Row>,
+  category: StageCategory,
+  cfg: AppConfig,
+): Row[] {
+  if (category === 'all') return [...rows]
+
+  const engCol = cfg.pivotColumnKey
+  return rows.filter((r) => {
+    const isAvailable = AVAILABLE_STAGES.has(r[engCol] ?? '')
+    return category === 'available' ? isAvailable : !isAvailable
+  })
+}
+
+/**
+ * 统计两档的行数 (分段按钮上的计数)。
+ *
+ * 计入的是 JIG 记录数, 与透视表总计行的口径一致, 不做去重。
+ */
+export function countStageCategories(
+  rows: ReadonlyArray<Row>,
+  cfg: AppConfig,
+): Record<StageCategory, number> {
+  let available = 0
+  for (const r of rows) {
+    if (AVAILABLE_STAGES.has(r[cfg.pivotColumnKey] ?? '')) available++
+  }
+  return {
+    all: rows.length,
+    available,
+    unavailable: rows.length - available,
+  }
+}
+
+/**
  * 透视下钻的定位键。
  *
  * 三者都缺省表示"全表"。列里的「总计」列不是工序名, 对应 eng 缺省;

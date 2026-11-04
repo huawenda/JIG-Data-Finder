@@ -204,3 +204,19 @@ export async function setWindowTheme(theme: 'light' | 'dark'): Promise<void> {
     /* 个别平台不支持设置标题栏主题, 静默降级 —— 内容区仍然正确 */
   }
 }
+
+/**
+ * 同步原生窗口标题。
+ *
+ * 标题栏由系统绘制, 不会跟随 document.title, 必须走 Tauri API 才会立刻生效。
+ * 浏览器回退由调用方自己写 document.title。
+ */
+export async function setWindowTitle(title: string): Promise<void> {
+  if (!IS_TAURI) return
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().setTitle(title)
+  } catch {
+    /* 个别平台不支持运行时改标题, 静默降级 */
+  }
+}
