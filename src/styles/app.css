@@ -672,6 +672,69 @@ textarea {
   background: var(--signal-soft);
 }
 
+/* ---- 透视下钻: 可点击的计数格 ---- */
+
+/*
+ * 可点格只加"手型 + hover 描边", 不改颜色。
+ *
+ * 这里刻意不用背景色块标记: 透视表里小计行整行都有 --band 底纹, 若
+ * 再给可点格换底色, 三类行会混成一片, 反而看不出哪里能点。描边只在
+ * 悬停的那一刻出现, 静态阅读时表格保持原样。
+ */
+.grid__td--drill {
+  cursor: pointer;
+}
+
+.grid__td--drill:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
+}
+
+/*
+ * 小计行 hover 原本被固定成 --band (见上方 .grid__tr.is-sub:hover),
+ * 可点格需要自己的描边不被它盖掉 —— box-shadow 与背景互不影响, 但
+ * 这里仍补一条背景, 让悬停反馈在灰底上同样明显。
+ */
+.grid__tr.is-sub .grid__td--drill:hover,
+.grid__tr.is-total .grid__td--drill:hover {
+  background: var(--accent-soft);
+}
+
+/* ============ 透视明细: 面包屑 ============ */
+
+.drill-bar {
+  gap: 10px;
+}
+
+.drill-bar__crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.drill-bar__part {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drill-bar__crumb {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.drill-bar__crumb--last {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill-bar__sep {
+  color: var(--ink-3);
+}
+
 /* ============ 空状态: 邀请, 不是空白 ============ */
 
 .empty {

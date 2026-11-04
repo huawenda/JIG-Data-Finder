@@ -173,6 +173,23 @@ export function queryData(
 }
 
 /**
+ * 把一批源行整理成"明细表" (加对应尺寸、按 cfg.sortColumns 排序、按输出列序取列)。
+ *
+ * 查询结果页与透视明细共用这一条链路, 保证两处看到的列序、对应尺寸、
+ * 排序完全一致。**不**做 Jig 状态过滤: 透视「结果透视」的底数据是全部
+ * 命中行, 若这里再按 INPRODUCTION 筛一次, 明细行数就会少于点击的数字。
+ */
+export function buildDetailTable(
+  rows: ReadonlyArray<Row>,
+  cfg: AppConfig,
+): Table {
+  if (rows.length === 0) return emptyTable()
+  const mapped = applySizeMapping([...rows], cfg)
+  const sorted = sortRows(mapped, cfg)
+  return { columns: columnsOf(sorted, Object.keys(sorted[0] ?? {})), rows: sorted }
+}
+
+/**
  * 审查页数据: 过滤 INPRODUCTION, 加"对应尺寸", 排序。不填充未找到。
  */
 export function processSourceData(sourceRows: ReadonlyArray<Row>, cfg: AppConfig): Table {
@@ -186,9 +203,7 @@ export function processSourceData(sourceRows: ReadonlyArray<Row>, cfg: AppConfig
 
   if (active.length === 0) return emptyTable()
 
-  const mapped = applySizeMapping(active, cfg)
-  const sorted = sortRows(mapped, cfg)
-  return { columns: columnsOf(sorted, Object.keys(sorted[0] ?? {})), rows: sorted }
+  return buildDetailTable(active, cfg)
 }
 
 /** 按 P/N 筛选审查数据 */

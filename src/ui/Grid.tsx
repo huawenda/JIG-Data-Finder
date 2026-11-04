@@ -24,7 +24,15 @@ export interface GridProps {
   pinLastColumn?: string
   /** 行高 (px), 需与 CSS --row-h 保持一致 */
   rowHeight?: number
+  /**
+   * 计数格点击回调 (透视表下钻)。
+   * 传了才启用: 只有非空数字格可点, P/N 与 CST ID 两列是标识列, 不可点。
+   */
+  onCellClick?: (rowIndex: number, column: string) => void
 }
+
+/** 透视表的标识列, 不是计数格 */
+const IDENTITY_COLUMNS = new Set(['P/N', 'CST ID'])
 
 /** 判断一行是否为小计行 (CST ID == "--") */
 function isSubtotal(row: Row): boolean {
@@ -187,6 +195,7 @@ export default function Grid({
   keywordTotal = '总计',
   pinLastColumn,
   rowHeight = DEFAULT_ROW_H,
+  onCellClick,
 }: GridProps) {
   // 外层 wrap 负责画边框, 内层 scroll 负责滚动。
   // 分开是为了避免"滚动条宽度影响可用宽度, 可用宽度又影响列宽"的循环。
@@ -401,6 +410,16 @@ export default function Grid({
                      */
                     const isSize = sizeIdx >= 0 && ci === sizeIdx
                     const isLast = ci === table.columns.length - 1
+                    /*
+                     * 只有"非空计数格"可点。透视表把 0 写成空串, 所以空串
+                     * 本身就代表"这里没有数据", 点开只会看到空明细。
+                     * P/N 与 CST ID 是标识列, 不属于计数。
+                     */
+                    const value = row[c] ?? ''
+                    const drillable =
+                      onCellClick !== undefined &&
+                      value !== '' &&
+                      !IDENTITY_COLUMNS.has(c)
                     const cls = [
                       isNumericColumn(c) ? 'num' : '',
                       isSize && bad ? 'bad bad-bg' : '',
@@ -412,12 +431,14 @@ export default function Grid({
                       ci === pinIdx ? 'grid__td--total' : '',
                       // 末列右缘竖规, 与表头对齐, 封闭表格 (见上方说明)
                       isLast ? 'grid__td--edge' : '',
+                      drillable ? 'grid__td--drill' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')
 
-                    const title =
-                      isSize && bad && pnColumn
+                    const title = drillable
+                      ? '点击查看明细'
+                      : isSize && bad && pnColumn
                         ? `P/N ${row[pnColumn] ?? ''} 与尺寸 ${row[c] ?? ''} 不匹配`
                         : undefined
 
@@ -426,6 +447,9 @@ export default function Grid({
                         key={c}
                         className={cls ? `grid__td ${cls}` : 'grid__td'}
                         title={title}
+                        onClick={
+                          drillable ? () => onCellClick(vi.index, c) : undefined
+                        }
                       >
                         {cell(row[c])}
                       </div>

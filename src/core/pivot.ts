@@ -24,21 +24,30 @@ import { emptyTable } from './table'
 export const SUMMARY_CST = '--'
 
 /**
- * 生成透视表。
+ * 透视下钻的定位键。
  *
- * @param df  源数据行
- * @param filterProduction  是否只保留"生产中"的 P/N
- * @param cfg 配置 (工程排序、排除名单等)
+ * 三者都缺省表示"全表"。列里的「总计」列不是工序名, 对应 eng 缺省;
+ * 小计行的 CST 缺省表示"该 P/N 下全部 CST"; 总计行的 pn 缺省表示"全部 P/N"。
  */
-export function generatePivot(
+export interface PivotDrillKey {
+  pn?: string
+  cst?: string
+  eng?: string
+}
+
+/**
+ * 透视前的数据预处理 (CST 回填 / 生产中筛选 / 工序列黑名单)。
+ *
+ * 抽出来是为了让下钻筛选与透视计数用**同一套**行, 否则点击某个数字
+ * 后筛出的明细行数与单元格上的数字对不上 —— 差异全藏在这三步里。
+ */
+export function preparePivotRows(
   df: ReadonlyArray<Row>,
   filterProduction: boolean,
   cfg: AppConfig,
-): Table {
-  if (df.length === 0) return emptyTable()
-
+): Row[] {
   // --- 1. 数据预处理: CST ID 为空时用 Lot ID 回填 ---
-  let work = df
+  let work: Row[] = [...df]
   if (work.some((r) => 'Lot ID' in r)) {
     work = work.map((r) =>
       r['CST ID'] === '' ? { ...r, 'CST ID': r['Lot ID'] ?? '' } : r,
@@ -53,7 +62,6 @@ export function generatePivot(
       work.filter((r) => r[engCodeCol] === indicator).map((r) => r['P/N']),
     )
     work = work.filter((r) => prodPns.has(r['P/N']))
-    if (work.length === 0) return emptyTable()
   }
 
   // --- 3. 排除工程黑名单 ---
@@ -63,8 +71,60 @@ export function generatePivot(
     work = work.filter((r) => !excluded.has(r[engColumn]))
   }
 
+  return work
+}
+
+/**
+ * 按透视单元格的定位键筛出源行 (下钻明细)。
+ *
+ * 预处理与 generatePivot 完全共用, 因此筛出的行数必须等于单元格上的
+ * 计数 —— 这是 tests/drill.test.ts 逐格校验的内容。
+ */
+export function drillPivotRows(
+  df: ReadonlyArray<Row>,
+  key: PivotDrillKey,
+  filterProduction: boolean,
+  cfg: AppConfig,
+): Row[] {
+  const prepared = preparePivotRows(df, filterProduction, cfg)
+  const engColumn = cfg.pivotColumnKey
+
+  // 总计行没有 P/N, 也就不该带 CST 条件 —— 否则等于永远筛出 0 行
+  const pn = key.pn
+  const cst = pn === undefined ? undefined : key.cst
+  const eng = key.eng
+
+  return prepared.filter((r) => {
+    if (pn !== undefined && r['P/N'] !== pn) return false
+    if (cst !== undefined && r['CST ID'] !== cst) return false
+    if (eng !== undefined && r[engColumn] !== eng) return false
+    return true
+  })
+}
+
+/**
+ * 生成透视表。
+ *
+ * @param df  源数据行
+ * @param filterProduction  是否只保留"生产中"的 P/N
+ * @param cfg 配置 (工程排序、排除名单等)
+ */
+export function generatePivot(
+  df: ReadonlyArray<Row>,
+  filterProduction: boolean,
+  cfg: AppConfig,
+): Table {
+  if (df.length === 0) return emptyTable()
+
+  // --- 1~3. 数据预处理: CST 回填 / 生产中筛选 / 工序列黑名单 ---
+  const work = preparePivotRows(df, filterProduction, cfg)
+  // 与原实现一致: 只有"生产中筛选把行筛空"才返回空表。
+  // 黑名单把行全排除时仍保留一张只有总计行的表 (总计为 0 -> "")。
+  if (filterProduction && work.length === 0) return emptyTable()
+
   // --- 4. 基础透视: 统计每个 (P/N, CST ID) 在各工程下的 Jig ID 数量 ---
   // key = P/N + '\u0000' + CST ID, 避免分隔符出现在真实值里
+  const engColumn = cfg.pivotColumnKey
   const counts = new Map<string, Map<string, number>>()
   const pnOrder: string[] = []
   const seenPn = new Set<string>()
