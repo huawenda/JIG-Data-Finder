@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>设置 · 偏好设置窗口（融合布局概念稿）</title>
+<style>
+/* ============================================================
+   「型号尺寸匹配」融合进「设置」—— 方案 A：左导航 + 右内容
+   深色「控制室」皮肤 · 概念稿
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;}
+
+:root{
+  --font-display:'Bahnschrift','Segoe UI Variable Display','Microsoft YaHei UI',system-ui,sans-serif;
+  --font-ui:'Segoe UI Variable Display','Microsoft YaHei UI','DengXian',system-ui,sans-serif;
+  --font-mono:'Cascadia Mono',Consolas,ui-monospace,monospace;
+  --radius-sm:4px; --radius:7px;
+
+  --ink:#e8f3f0; --ink-2:#8fa3a0; --ink-3:#5a6a68;
+  --rule:rgba(255,255,255,.075); --rule-strong:rgba(255,255,255,.15);
+  --board:#070a0b; --surface:#0f1618; --band:#141d20;
+  --accent:#2fe3c0; --accent-hover:#57f0d4; --accent-soft:rgba(47,227,192,.12);
+  --accent-glow:rgba(47,227,192,.28); --on-accent:#04120f;
+  --signal:#ff5d4f; --signal-soft:rgba(255,93,79,.13);
+  --lamp:#f4a63c; --ok:#33d69f;
+}
+
+html,body{height:100%;margin:0;}
+body{
+  font-family:var(--font-ui); color:var(--ink); overflow:hidden;
+  background:
+    radial-gradient(1100px 560px at 82% -14%, var(--accent-glow), transparent 62%),
+    linear-gradient(var(--rule) 1px,transparent 1px) 0 0/100% 28px,
+    linear-gradient(90deg,var(--rule) 1px,transparent 1px) 0 0/28px 100%,
+    var(--board);
+}
+
+/* 背景里那层"被遮住的应用"，只是为了让对话框有上下文 */
+.ghost{position:fixed;inset:0;opacity:.35;pointer-events:none;}
+.ghost__bar{height:44px;border-bottom:1px solid var(--rule-strong);
+  background:linear-gradient(180deg,var(--band),var(--surface));display:flex;align-items:center;padding:0 16px;gap:12px;}
+.ghost__mark{width:15px;height:15px;border-radius:5px;background:var(--accent);box-shadow:0 0 14px -2px var(--accent-glow);}
+.ghost__name{font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:.16em;}
+.ghost__path{height:26px;width:min(420px,40%);border:1px solid var(--rule);border-radius:var(--radius-sm);background:var(--board);}
+.ghost__sp{flex:1;}
+.ghost__btn{height:26px;width:64px;border:1px solid var(--rule-strong);border-radius:var(--radius-sm);}
+
+/* ---------------- 遮罩 + 对话框 ---------------- */
+.scrim{
+  position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:24px;
+  background:rgba(2,5,6,.62);
+}
+.dialog--prefs{
+  width:min(880px,100%);
+  height:min(640px,100%);
+  display:grid;grid-template-rows:auto 1fr auto;
+  background:var(--surface);
+  border:1px solid var(--rule-strong);border-radius:10px;
+  box-shadow:0 0 0 1px var(--rule),0 24px 60px -20px rgba(0,0,0,.6);
+  overflow:hidden;position:relative;
+}
+/* 顶缘状态光 */
+.dialog--prefs::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:1px;opacity:.6;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+}
+
+/* 头部 */
+.dialog__head{padding:16px 22px 14px;border-bottom:1px solid var(--rule);}
+.dialog__head h2{margin:0;font-size:15px;font-weight:650;letter-spacing:.01em;}
+.dialog__head p{margin:3px 0 0;font-size:12px;color:var(--ink-3);}
+
+/* 主体：左导航 + 右面板 */
+.dialog__main{display:grid;grid-template-columns:200px 1fr;min-height:0;}
+.prefs-nav{
+  display:flex;flex-direction:column;gap:2px;
+  padding:10px;min-height:0;overflow:auto;
+  background:linear-gradient(180deg,var(--surface),var(--board));
+  border-right:1px solid var(--rule-strong);
+}
+.prefs-nav__item{
+  position:relative;display:flex;align-items:center;gap:8px;
+  height:34px;padding:0 10px 0 12px;
+  font:inherit;font-size:12.5px;font-weight:500;letter-spacing:.01em;
+  color:var(--ink-2);background:transparent;border:0;border-radius:var(--radius-sm);
+  cursor:pointer;text-align:left;transition:background .14s,color .14s;
+}
+.prefs-nav__item:hover{background:var(--band);color:var(--ink);}
+.prefs-nav__item::before{
+  content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;
+  background:var(--accent);box-shadow:0 0 10px var(--accent-glow);
+  opacity:0;transition:opacity .16s;
+}
+.prefs-nav__item[aria-selected='true']{background:var(--accent-soft);color:var(--ink);font-weight:700;}
+.prefs-nav__item[aria-selected='true']::before{opacity:1;}
+.prefs-nav__badge{
+  margin-left:auto;font-family:var(--font-mono);font-size:10.5px;
+  padding:1px 7px;border-radius:20px;border:1px solid var(--rule);
+  background:var(--band);color:var(--ink-3);
+}
+.prefs-nav__item[aria-selected='true'] .prefs-nav__badge{color:var(--accent);border-color:var(--accent);background:transparent;}
+
+/* 右面板：唯一的滚动轴 */
+.prefs-pane{padding:20px 22px;overflow:auto;min-height:0;}
+.pane{display:none;}
+.pane[data-active='true']{display:block;animation:paneIn .24s cubic-bezier(.4,0,.2,1);}
+@keyframes paneIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+.fieldset{border:0;border-top:1px solid var(--rule);margin:0;padding:16px 0 4px;}
+.fieldset:first-child{border-top:0;padding-top:0;}
+.fieldset__legend{padding:0;font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);}
+.field{display:grid;grid-template-columns:190px 1fr;align-items:center;gap:12px;padding:7px 0;}
+.field__label{font-size:12.5px;color:var(--ink-2);}
+.field__control{display:flex;align-items:center;gap:8px;}
+.field__text{
+  flex:1;min-width:0;height:28px;display:flex;align-items:center;padding:0 9px;
+  font-family:var(--font-mono);font-size:12px;color:var(--ink-3);font-style:italic;
+  background:var(--board);border:1px solid var(--rule);border-radius:var(--radius-sm);
+}
+.field__num{
+  width:74px;height:28px;padding:0 8px;font-family:var(--font-mono);font-size:12.5px;
+  color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);
+  border-radius:var(--radius-sm);text-align:right;
+}
+.select{
+  height:28px;min-width:120px;padding:0 24px 0 8px;font:inherit;font-size:12.5px;color:var(--ink);
+  background:var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238FA3A0' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>") no-repeat right 8px center;
+  border:1px solid var(--rule-strong);border-radius:var(--radius-sm);appearance:none;cursor:pointer;
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 12px;
+  font:inherit;font-size:12.5px;font-weight:550;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--radius-sm);
+  cursor:pointer;white-space:nowrap;transition:.16s;
+}
+.btn:hover{background:var(--band);border-color:var(--accent);color:var(--ink);}
+.btn--primary{
+  color:var(--on-accent);font-weight:700;border-color:transparent;
+  background:linear-gradient(180deg,var(--accent),var(--accent-hover));
+  box-shadow:0 0 0 1px var(--rule-strong),0 8px 22px -14px var(--accent-glow);
+}
+.btn--primary:hover{filter:brightness(1.06);color:var(--on-accent);}
+.btn--sm{height:22px;padding:0 7px;font-size:11.5px;}
+.btn--danger{color:var(--ink-3);background:transparent;border-color:transparent;padding:0 8px;font-size:12px;}
+.btn--danger:hover{color:var(--signal);background:var(--signal-soft);}
+.btn--ghost{background:transparent;border-color:transparent;color:var(--ink-3);}
+.btn--ghost:hover{color:var(--accent);background:var(--accent-soft);}
+
+/* 开关 */
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);cursor:pointer;}
+.switch__track{width:34px;height:18px;border-radius:20px;background:var(--band);border:1px solid var(--rule-strong);position:relative;transition:.16s;flex:none;}
+.switch__track::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--ink-3);transition:.16s;}
+.switch[data-on='true'] .switch__track{background:var(--accent-soft);border-color:var(--accent);}
+.switch[data-on='true'] .switch__track::after{transform:translateX(16px);background:var(--accent);box-shadow:0 0 8px var(--accent-glow);}
+
+/* ---------------- 型号尺寸匹配面板 ---------------- */
+.map__note{margin:0 0 14px;font-size:12px;color:var(--ink-3);line-height:1.7;}
+.map__note code{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);background:var(--band);padding:1px 5px;border-radius:3px;}
+.map__toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.map__spacer{flex:1;}
+.map__count{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);}
+.map__count[data-bad='true']{color:var(--signal);}
+
+.map{border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;background:var(--surface);}
+.map__head,.map__row{display:grid;grid-template-columns:20px 118px minmax(0,1fr) 52px 52px;align-items:center;gap:8px;padding:0 10px;}
+.map__head{
+  height:28px;border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,var(--band),var(--surface));
+  position:sticky;top:0;z-index:2;
+}
+.map__col{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);}
+.map__col--move,.map__col--grip{text-align:center;}
+.map__row{min-height:34px;padding-top:3px;padding-bottom:3px;border-bottom:1px solid var(--rule);}
+.map__row:last-child{border-bottom:0;}
+.map__row:nth-child(even){background:var(--band);}
+.map__row:focus-within{background:var(--accent-soft);}
+.map__grip{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:0;font-size:13px;line-height:1;
+  color:var(--ink-3);background:transparent;border:0;border-radius:var(--radius-sm);cursor:grab;user-select:none;}
+.map__grip:hover{color:var(--ink-2);background:var(--board);}
+.map__input{height:26px;min-width:0;padding:0 8px;font-family:var(--font-mono);font-size:12px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius-sm);}
+.map__input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(47,227,192,.28);}
+.map__input[data-invalid='true']{border-color:var(--signal);color:var(--signal);}
+.map__move{display:flex;gap:2px;justify-content:center;}
+.map__err{grid-column:1/-1;padding:0 0 3px;font-size:11px;color:var(--signal);}
+
+/* 脚部 */
+.dialog__foot{
+  display:flex;justify-content:flex-end;gap:8px;padding:0 22px;height:56px;align-items:center;
+  background:var(--band);border-top:1px solid var(--rule-strong);
+}
+</style>
+</head>
+<body>
+
+<!-- 背景：被遮住的应用（仅示意） -->
+<div class="ghost" aria-hidden="true">
+  <div class="ghost__bar">
+    <span class="ghost__mark"></span>
+    <span class="ghost__name">JIG DATA FINDER</span>
+    <span class="ghost__path"></span>
+    <span class="ghost__sp"></span>
+    <span class="ghost__btn"></span><span class="ghost__btn"></span>
+  </div>
+</div>
+
+<!-- 对话框 -->
+<div class="scrim" role="presentation">
+  <div class="dialog--prefs" role="dialog" aria-modal="true" aria-label="设置">
+    <div class="dialog__head">
+      <h2>设置</h2>
+      <p>改动在下次启动时完全生效。</p>
+    </div>
+
+    <div class="dialog__main">
+      <nav class="prefs-nav" role="tablist" aria-label="设置分类">
+        <button class="prefs-nav__item" role="tab" aria-selected="true" data-pane="file">文件</button>
+        <button class="prefs-nav__item" role="tab" aria-selected="false" data-pane="ui">界面</button>
+        <button class="prefs-nav__item" role="tab" aria-selected="false" data-pane="data">数据处理</button>
+        <button class="prefs-nav__item" role="tab" aria-selected="false" data-pane="map">
+          型号尺寸匹配 <span class="prefs-nav__badge">16 条</span>
+        </button>
+      </nav>
+
+      <div class="prefs-pane">
+        <!-- 文件 -->
+        <section class="pane" data-active="true" data-pane="file" role="tabpanel">
+          <fieldset class="fieldset">
+            <legend class="fieldset__legend">文件</legend>
+            <div class="field">
+              <label class="field__label">源文件默认目录</label>
+              <div class="field__control">
+                <span class="field__text">使用系统默认</span>
+                <button class="btn">更换</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">导出文件默认目录</label>
+              <div class="field__control">
+                <span class="field__text">D:\导出\JIG</span>
+                <button class="btn">更换</button>
+              </div>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- 界面 -->
+        <section class="pane" data-pane="ui" role="tabpanel">
+          <fieldset class="fieldset">
+            <legend class="fieldset__legend">界面</legend>
+            <div class="field">
+              <label class="field__label">主题</label>
+              <div class="field__control">
+                <select class="select"><option>浅色</option><option selected>深色</option><option>跟随系统</option></select>
+                <span class="field__label">深色</span>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">表格行高</label>
+              <div class="field__control"><input class="field__num" value="30" /><span class="field__label">px</span></div>
+            </div>
+            <div class="field">
+              <label class="field__label">窗口尺寸</label>
+              <div class="field__control"><input class="field__num" value="1400" /><span class="field__label">×</span><input class="field__num" value="800" /><span class="field__label">px</span></div>
+            </div>
+            <div class="field">
+              <label class="field__label">系统托盘</label>
+              <div class="field__control">
+                <span class="switch" data-on="true" onclick="this.dataset.on=this.dataset.on==='true'?'false':'true'">
+                  <span class="switch__track"></span>在系统托盘显示图标
+                </span>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">关闭按钮</label>
+              <div class="field__control">
+                <span class="switch" data-on="true" onclick="this.dataset.on=this.dataset.on==='true'?'false':'true'">
+                  <span class="switch__track"></span>最小化到系统托盘,不退出
+                </span>
+              </div>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- 数据处理 -->
+        <section class="pane" data-pane="data" role="tabpanel">
+          <fieldset class="fieldset">
+            <legend class="fieldset__legend">数据处理</legend>
+            <div class="field">
+              <label class="field__label">粘贴时提取 JIG ID</label>
+              <div class="field__control">
+                <span class="switch" data-on="true" onclick="this.dataset.on=this.dataset.on==='true'?'false':'true'">
+                  <span class="switch__track"></span>从邮件等混合文本里自动挑出 ID
+                </span>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">尺寸验证</label>
+              <div class="field__control">
+                <span class="switch" data-on="false" onclick="this.dataset.on=this.dataset.on==='true'?'false':'true'">
+                  <span class="switch__track"></span>启动时默认标出不匹配的尺寸
+                </span>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">导出文件名</label>
+              <div class="field__control">
+                <span class="switch" data-on="true" onclick="this.dataset.on=this.dataset.on==='true'?'false':'true'">
+                  <span class="switch__track"></span>附加时间戳,避免覆盖旧文件
+                </span>
+              </div>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- 型号尺寸匹配 -->
+        <section class="pane" data-pane="map" role="tabpanel">
+          <p class="map__note">
+            维护「Jig 对应型号 → 对应尺寸」的规则。尺寸串用 <code>_</code> 分隔互斥组，
+            例如 <code>65/55_77/48_83/48</code>；<code>All Size</code> 恒匹配。
+          </p>
+          <div class="map__toolbar">
+            <button class="btn">新增</button>
+            <button class="btn">恢复默认</button>
+            <span class="map__spacer"></span>
+            <span class="map__count">16 条规则</span>
+          </div>
+          <div class="map">
+            <div class="map__head">
+              <span class="map__col map__col--grip"></span>
+              <span class="map__col">型号</span>
+              <span class="map__col">对应尺寸</span>
+              <span class="map__col map__col--move">顺序</span>
+              <span class="map__col"></span>
+            </div>
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 1 行">⠿</button>
+              <input class="map__input" value="184" />
+              <input class="map__input" value="65/55" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm" disabled>↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 2 行">⠿</button>
+              <input class="map__input" value="430" />
+              <input class="map__input" value="65/55_77/48_83/48" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm">↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 3 行">⠿</button>
+              <input class="map__input" value="502N" />
+              <input class="map__input" value="65/55_77/48_83/48" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm">↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+            <!-- 演示：重复型号的错误行 -->
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 4 行">⠿</button>
+              <input class="map__input" value="508" data-invalid="true" />
+              <input class="map__input" value="77/48_83/48" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm">↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+              <span class="map__err">型号「508」重复</span>
+            </div>
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 5 行">⠿</button>
+              <input class="map__input" value="256" />
+              <input class="map__input" value="All Size" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm">↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+            <div class="map__row">
+              <button class="map__grip" aria-label="拖动第 6 行">⠿</button>
+              <input class="map__input" value="262" />
+              <input class="map__input" value="All Size" />
+              <span class="map__move">
+                <button class="btn btn--ghost btn--sm">↑</button>
+                <button class="btn btn--ghost btn--sm">↓</button>
+              </span>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="dialog__foot">
+      <button class="btn">取消</button>
+      <button class="btn btn--primary">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 左导航切换（概念稿用；正式实现走 React 状态） */
+document.querySelectorAll('.prefs-nav__item').forEach((item) => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.prefs-nav__item').forEach((n) => n.setAttribute('aria-selected', 'false'))
+    item.setAttribute('aria-selected', 'true')
+    const id = item.dataset.pane
+    document.querySelectorAll('.pane').forEach((p) => {
+      p.dataset.active = String(p.dataset.pane === id)
+    })
+  })
+})
+</script>
+</body>
+</html>
