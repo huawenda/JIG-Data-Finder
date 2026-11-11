@@ -19,7 +19,6 @@ export interface SettingsDraft {
   tableDefaultRowHeight: number
   windowSize: [number, number]
   clipboardAutoProcessEnabled: boolean
-  sizeValidationEnabled: boolean
   closeToTray: boolean
   trayEnabled: boolean
   exportTimestampEnabled: boolean
@@ -437,20 +436,6 @@ export default function SettingsDialog({
                       }
                     />
                     从邮件等混合文本里自动挑出 ID
-                  </label>
-                </div>
-
-                <div className="field">
-                  <span className="field__label">尺寸验证</span>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={d.sizeValidationEnabled}
-                      onChange={(e) =>
-                        patch({ sizeValidationEnabled: e.target.checked })
-                      }
-                    />
-                    启动时默认标出不匹配的尺寸
                   </label>
                 </div>
 

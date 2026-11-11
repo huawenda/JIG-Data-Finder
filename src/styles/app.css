@@ -355,15 +355,32 @@ textarea {
  * 带描边和极轻的投影。不用彩色: 整个界面是中性的, 颜色预算全留给状态色
  * (红=不匹配 / 琥珀=载入中 / 绿=通过)。
  */
+/*
+ * 标签 + 右侧读数共用的一行。
+ *
+ * 读数 (如"不匹配 10 行") 不再单独占一行 —— 它只是一条状态提示, 和标签同高
+ * 更省纵向空间, 视觉上也更像"附着在标签栏上的读数"。
+ */
+.tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .tabs {
   display: inline-flex;
   align-items: stretch;
   gap: 2px;
-  /* 只占内容宽, 不拉满整行 */
-  align-self: flex-start;
   padding: 3px;
   background: var(--band);
   border-radius: var(--radius-sm);
+}
+
+/* 标签行右侧的读数 */
+.tabs-row__meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-2);
 }
 
 .tab {
@@ -401,24 +418,6 @@ textarea {
 .tab:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
-}
-
-/* 计数徽章 */
-.tab__badge {
-  padding: 0 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-  line-height: 15px;
-  border: 1px solid var(--rule);
-  border-radius: 20px;
-  background: var(--board);
-  color: var(--ink-3);
-}
-
-.tab[aria-selected='true'] .tab__badge {
-  border-color: var(--rule-strong);
-  color: var(--ink-2);
 }
 
 /* ============ 工序轨道 (记忆点) ============ */
@@ -748,16 +747,20 @@ textarea {
 }
 
 /*
- * 非冻结表 (查询结果 / 数据审查 / 透视明细): 最后一条数据行的底边会和卡片
- * 底框贴成 2px 的双线 —— 去掉行的底边, 底边统一交给卡片边框来画。
+ * 非冻结表 (查询结果 / 数据审查 / 透视明细): 最后一条数据行的底边, 只在
+ * **内容撑满可滚区** 时要收掉 —— 那时它紧贴卡片底框, 两条 1px 会叠成双线。
  *
- * 只对 data-freeze='false' 生效。冻结表 (全量透视) 里最后一条明细的底边是
- * "总计行上方的分隔线", 必须留着, 所以不能一刀切。
+ * 必须带 data-vscroll='true' 这个条件。早先没带, 于是"内容不足一屏"时最后
+ * 一行的底边也被收掉, 数据区就成了开口的 (卡片底框在很下面, 中间全是空白) ——
+ * 那正是需要这条边来收口的情形。
  *
- * 虚拟滚动下 DOM 里的最后一行通常落在 overscan 区 (视口之外, 看不到), 只有
- * 真正滚到底、那一行露出来的时候这条规则才可见 —— 而那正是需要它的时刻。
+ * 虚拟滚动下 DOM 里的最后一行通常落在 overscan 区 (视口之外), 所以这条规则
+ * 只在真正滚到底、那一行露出来时才看得见效果。
  */
-.grid-wrap[data-freeze='false'] .grid__body > .grid__tr:last-child .grid__td {
+.grid-wrap[data-freeze='false'][data-vscroll='true']
+  .grid__body
+  > .grid__tr:last-child
+  .grid__td {
   border-bottom: 0;
 }
 

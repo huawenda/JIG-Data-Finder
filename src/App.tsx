@@ -71,6 +71,20 @@ const TAB_LABELS: Record<TabId, string> = {
   pivot: '全量透视',
   review: '数据审查',
 }
+
+/**
+ * 标签栏的顺序与文案。
+ *
+ * 不再带条数徽章 —— 一开始只给「查询结果 / 结果透视」看, 但那两个数字每次
+ * 查询都变, 挂在标签上更像噪音; 真正需要读数的地方 (审查页工具条、状态栏)
+ * 本来就有。
+ */
+const TABS: readonly { id: TabId; label: string }[] = [
+  { id: 'detail', label: TAB_LABELS.detail },
+  { id: 'queryPivot', label: TAB_LABELS.queryPivot },
+  { id: 'pivot', label: TAB_LABELS.pivot },
+  { id: 'review', label: TAB_LABELS.review },
+]
 /**
  * 全量透视的显示范围。
  *
@@ -190,7 +204,6 @@ export default function App() {
    */
   const [reviewScope, setReviewScope] = useState<ReviewScope>('all')
 
-  const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
   /*
    * 当前生效的主题模式。
@@ -232,7 +245,6 @@ export default function App() {
         if (stored) {
           const merged = mergeConfig(stored)
           setCfg(merged)
-          setSizeValidation(merged.sizeValidationEnabled)
           /* 配置是主题的权威来源, 覆盖 localStorage 缓存的首帧猜测 */
           setThemeMode(merged.theme)
           applyConfig(merged)
@@ -532,13 +544,17 @@ export default function App() {
     [rules],
   )
 
-  const detailFlags = useMemo(
-    () => (sizeValidation ? mismatchFlags(detail) : []),
-    [detail, mismatchFlags, sizeValidation],
-  )
+  /*
+   * 查询结果页的标红。
+   *
+   * 原先由工具条上的「标出尺寸不匹配」开关控制 (sizeValidation); 那个开关已
+   * 下线 —— 查询结果页存在的意义就是把命中记录连同尺寸对不上的地方一起摆出来,
+   * 默认就该标红, 没必要让用户先勾一下。
+   */
+  const detailFlags = useMemo(() => mismatchFlags(detail), [detail, mismatchFlags])
 
   /*
-   * 审查页的分类结果。审查页不过 sizeValidation 开关 —— 这一页的存在意义
+   * 审查页的分类结果。审查页本来就不受尺寸验证开关影响 —— 这一页的存在意义
    * 就是挑出对不上的 JIG, 关掉标红这页就没有内容了。
    *
    * 保留完整分类(而不是立刻折成布尔), 是因为两档视野要按它筛行;
@@ -835,7 +851,6 @@ export default function App() {
     tableDefaultRowHeight: c.tableDefaultRowHeight,
     windowSize: c.windowSize,
     clipboardAutoProcessEnabled: c.clipboardAutoProcessEnabled,
-    sizeValidationEnabled: c.sizeValidationEnabled,
     closeToTray: c.closeToTray,
     trayEnabled: c.trayEnabled,
     exportTimestampEnabled: c.exportTimestampEnabled,
@@ -862,7 +877,6 @@ export default function App() {
     }
     setCfg(next)
     setShowSettings(false)
-    setSizeValidation(d.sizeValidationEnabled)
     applyConfig(next)
     setThemeMode(d.theme)
     document.documentElement.style.setProperty('--row-h', `${d.tableDefaultRowHeight}px`)
@@ -927,12 +941,6 @@ export default function App() {
     return REVIEW_EMPTY[reviewScope]
   }, [reviewAll.rows.length, reviewByPn.rows.length, reviewScope])
 
-  const TABS: { id: TabId; label: string; count: number }[] = [
-    { id: 'detail', label: TAB_LABELS.detail, count: detail.rows.length },
-    { id: 'queryPivot', label: TAB_LABELS.queryPivot, count: queryPivot.rows.length },
-    { id: 'pivot', label: TAB_LABELS.pivot, count: currentPivot.rows.length },
-    { id: 'review', label: TAB_LABELS.review, count: reviewTable.rows.length },
-  ]
   return (
     <div className="app">
       {/* ---- 第一层: 仪表头 ---- */}
@@ -1086,24 +1094,35 @@ export default function App() {
         </aside>
 
         <main className="main">
-          <div className="tabs" role="tablist">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                className="tab"
-                role="tab"
-                aria-selected={tab === t.id}
-                type="button"
-                onClick={() => {
-                  setTab(t.id)
-                  // 下钻属于某张透视表, 切页就退出, 避免"在审查页却挂着透视明细"
-                  setDrill(null)
-                }}
-              >
-                {t.label}
-                {t.count > 0 && <span className="tab__badge">{t.count}</span>}
-              </button>
-            ))}
+          <div className="tabs-row">
+            <div className="tabs" role="tablist">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  className="tab"
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  type="button"
+                  onClick={() => {
+                    setTab(t.id)
+                    // 下钻属于某张透视表, 切页就退出, 避免"在审查页却挂着透视明细"
+                    setDrill(null)
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {/*
+              查询结果页的标红行数。
+              放在标签同一行右侧, 不单独占一行 —— 标红已默认开启 (没有开关了),
+              它只是一条读数, 不值得占掉一整行高度。
+            */}
+            {tab === 'detail' && (
+              <span className="tabs-row__meta">
+                不匹配 {detailFlags.filter(Boolean).length} 行
+              </span>
+            )}
           </div>
 
           {/* 工序轨道: 透视类页面才显示, 因为它读的是总计行的工序分布 */}
@@ -1152,30 +1171,11 @@ export default function App() {
             </div>
           )}
 
-          {tab === 'detail' && (
-            <div className="toolbar">
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={sizeValidation}
-                  onChange={(e) => setSizeValidation(e.target.checked)}
-                />
-                标出尺寸不匹配
-              </label>
-              <span className="toolbar__spacer" />
-              {sizeValidation && (
-                <span className="toolbar__label">
-                  不匹配 {detailFlags.filter(Boolean).length} 行
-                </span>
-              )}
-            </div>
-          )}
-
           {tab === 'pivot' && !drillActive && (
             <div className="toolbar">
-              <span className="toolbar__label">显示范围</span>
               <select
                 className="select select--pn"
+                aria-label="显示范围"
                 value={pivotScope}
                 onChange={(e) => setPivotScope(e.target.value as PivotScope)}
               >
@@ -1209,9 +1209,9 @@ export default function App() {
 
           {tab === 'review' && (
             <div className="toolbar">
-              <span className="toolbar__label">P/N</span>
               <select
                 className="select select--pn"
+                aria-label="P/N"
                 value={pnFilter}
                 onChange={(e) => setPnFilter(e.target.value)}
               >

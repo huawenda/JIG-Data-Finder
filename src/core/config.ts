@@ -77,7 +77,13 @@ export interface AppConfig {
    */
   theme: ThemeMode
 
-  /** 尺寸验证配置 */
+  /**
+   * 尺寸验证配置。
+   *
+   * 字段保留是为了不破坏已保存的配置文件 (mergeConfig 会读它), 但界面已经
+   * 不再消费 —— 查询结果页的标红改成**默认开启**, 那个开关连同设置里的
+   * 「启动时默认标出不匹配的尺寸」一起下线了。
+   */
   sizeValidationEnabled: boolean
   pnExtractStart: number
   pnExtractLength: number
@@ -210,6 +216,7 @@ export function createDefaultConfig(): AppConfig {
      */
     theme: 'light',
 
+    /* 已不再被界面消费, 保留仅为了不破坏已保存的配置; 详见字段声明处 */
     sizeValidationEnabled: false,
     pnExtractStart: 6,
     pnExtractLength: 4,
