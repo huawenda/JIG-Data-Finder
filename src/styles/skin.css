@@ -366,6 +366,25 @@
   border-bottom: 1px solid var(--rule);
 }
 
+/*
+ * 型号尺寸匹配表的表头。
+ *
+ * app.css 里它用的是 --board (页面底色) —— 旧配色下页面比面板深一点, 靠这点
+ * 差值就能看出来; 换成 shadcn 中性配色后 --board 与 --surface 都是纯白, 那点
+ * 差值没了, 表头看着就像"没有底色"。这里跟主表格表头对齐, 统一用 --band。
+ */
+.map__head {
+  background: var(--band);
+}
+
+/*
+ * 拖拽手柄的悬停底同理: app.css 给的 --board 在隔行的浅灰(--band)行上会看不见。
+ * 换成 --rule, 白底与浅灰底上都分得出来。(color 仍沿用 app.css 那条。)
+ */
+.map__grip:hover {
+  background: var(--rule);
+}
+
 .grid__th {
   color: var(--ink-2);
   font-weight: 600;
