@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { AppConfig } from '../core/config'
+import { AVAILABLE_STAGES } from '../core/pivot'
 import type { Table } from '../core/table'
 import OverlayScrollbar from './OverlayScrollbar'
 
@@ -40,6 +41,18 @@ export default function StageRail({ table, config }: StageRailProps) {
   const peak = Math.max(1, ...counts.values())
   const lead = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 
+  /*
+   * "可用 / 非可用"的分界。
+   *
+   * 分界点不写死位置, 而是取 engineeringConfig 顺序里**最后一道可用工序**的
+   * 下标 (可用工序集合见 core/pivot 的 AVAILABLE_STAGES)。这样以后现场口径
+   * 变了、或工序增删, 分界线自己会跟着走, 不用回来改这里。
+   */
+  const splitIndex = stageNames.reduce(
+    (acc, name, i) => (AVAILABLE_STAGES.has(name) ? i : acc),
+    -1,
+  )
+
   return (
     <div className="rail-stages-wrap">
       <div
@@ -48,32 +61,50 @@ export default function StageRail({ table, config }: StageRailProps) {
         role="list"
         aria-label="工序分布"
       >
-        {stageNames.map((name) => {
+        {stageNames.map((name, i) => {
           const n = counts.get(name) ?? 0
           const empty = n === 0
           // 0-4 档映射到透明度, 避免每道工序都画一条同长度的条
           const weight = n === 0 ? 0 : 0.25 + 0.75 * (n / peak)
+          // 分界画在这一项之后 (右侧插入留白 + 立分隔线)
+          const isSplit = i === splitIndex && i < stageNames.length - 1
 
           return (
-            <div
-              key={name}
-              role="listitem"
-              className="stage"
-              data-empty={empty}
-              data-active={!empty}
-              data-lead={name === lead && !empty}
-              title={`${name}: ${n}`}
-            >
+            <Fragment key={name}>
               <div
-                className="stage__bar"
-                style={{ opacity: weight }}
-                aria-hidden="true"
-              />
-              <div className="stage__name">{name}</div>
-              <div className="stage__count">
-                <AnimatedCount value={n} />
+                role="listitem"
+                className="stage"
+                data-empty={empty}
+                data-active={!empty}
+                data-lead={name === lead && !empty}
+                data-break={isSplit ? 'true' : undefined}
+                title={`${name}: ${n}`}
+              >
+                <div
+                  className="stage__bar"
+                  style={{ opacity: weight }}
+                  aria-hidden="true"
+                />
+                <div className="stage__name">{name}</div>
+                <div className="stage__count">
+                  <AnimatedCount value={n} />
+                </div>
               </div>
-            </div>
+
+              {/*
+                可用 / 非可用之间的横向留白。
+                用一段真实存在的间隙, 而不是靠"相邻两列各占一半" —— 后者留下的
+                净空太小, 长工序名 (如「Jig N判定 另外移载」) 会贴到分界线上。
+              */}
+              {isSplit && (
+                <span className="rail__gap" aria-hidden="true">
+                  <span
+                    className="rail__divide"
+                    title="可用工序 / 非可用工序 分界"
+                  />
+                </span>
+              )}
+            </Fragment>
           )
         })}
       </div>

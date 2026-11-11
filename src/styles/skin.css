@@ -160,27 +160,92 @@
 .rail-stages {
   position: relative;
   gap: 0;
-  padding: 26px 12px 12px;
+  /*
+   * 上内边距 32 / 下内边距 12, 是为让"节点上方留白"与"横条下方留白"相等:
+   *   点上留白 = 32 - 20 (圆点 top) = 12
+   *   条下留白 = 12 (横条底边即工序底边)
+   * 早先上是 26 -> 点上只有 6, 底部是它的两倍, 看着"上挤下松"。
+   */
+  padding: 32px 12px 12px;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
 }
 
-/* 贯穿的连接线 */
-.rail-stages::before {
+/*
+ * 节点之间的连接线: 一段一段画在**每个工序自己身上** —— 从本工序节点的中心
+ * 连到下一个工序节点的中心 (工序等宽, 所以 width:100% 正好够到下一个中心)。
+ *
+ * 早先是一条横贯整个轨道的容器级 ::before 线, 两端会伸到首尾节点之外"出头"。
+ * 改成按段画之后: 首项向左、尾项向右本来就没有线段, 天然不出头; 而且想在
+ * 哪断开就在哪断开 (见下面的 data-break)。
+ */
+.stage::after {
   content: '';
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 13px;
+  left: 50%;
+  /* 线心 = -14 + 0.5 = -13.5, 与 13px 圆点的圆心 (-20 + 6.5) 完全重合 */
+  top: -14px;
+  width: 100%;
   height: 1px;
   background: var(--rule);
 }
 
+/* 尾项右边没有"下一个节点", 不画 */
+.stage:last-child::after {
+  display: none;
+}
+
+/* 分界处断开连接: 可用工序在这一侧结束 */
+.stage[data-break='true']::after {
+  display: none;
+}
+
+/*
+ * 可用 / 非可用之间的横向留白。
+ *
+ * 一段**真实存在**的空档 (flex: 0 0 <宽>, 不参与伸缩), 让分界线左右各有足够
+ * 净空。早先没有这段留白, 分界线落在相邻两列的交界上, 左右净空只有"列宽的
+ * 一半", 长工序名 (如「Jig N判定 另外移载」) 会贴到线上。
+ */
+.rail__gap {
+  position: relative;
+  flex: 0 0 32px;
+}
+
+/*
+ * 分界线: 立在留白正中。
+ *
+ * 粗细与颜色都跟轨道外框**保持一致** (1px + --rule) —— 它是一条结构线, 不是
+ * 强调线, 比框线更深反而抢眼。
+ *
+ * 纵向只覆盖**内容本身** —— 上到圆点顶部 (-20), 下到横条底部 (0), 比整条轨道
+ * 短, 不与外框相交 (上下各留 12px), 且上下对称。
+ * 偏移量跟着 .rail-stages 的 padding (上 32 / 下 12) 走, 改那个要一起看这里。
+ */
+.rail__divide {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -20px;
+  bottom: 0;
+  width: 1px;
+  background: var(--rule);
+}
+
+/*
+ * 工序列。
+ *
+ * min-width 必须是 0, 不能只把 104px 去掉。flex 子项默认 min-width:auto
+ * (= 内容的最小宽度), 那样长工序名会把列撑住、整条轨道横向溢出 —— 结果是
+ * 窄窗口下最后几道工序被推出可视区, 最右侧那条连接线还顶到外框上。
+ * 设成 0 之后各列等分压缩, 轨道永远装得下; 空间实在不够时工序名走省略号
+ * (完整名称在 title 里, 悬停可见)。
+ */
 .stage {
   position: relative;
   flex: 1 1 0;
-  min-width: 104px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -189,15 +254,23 @@
   border-left: 0;
 }
 
-/* 节点圆点 */
+/*
+ * 节点圆点。
+ *
+ * 直径取 **13px (奇数)**, 而不是 12px —— 这是为了和 1px 的连接线精确对齐:
+ * 1px 线的线心永远落在半像素上 (top + 0.5), 只有奇数直径的圆, 其圆心才会
+ * 同样落在半像素上。两者取同一个值 (-13.5) 就既能对齐、又都落在整像素上
+ * 被清晰渲染; 若用 12px (圆心落在整数 -13), 线要么偏 0.5px、要么被迫跨
+ * 半像素而被渲染成一条糊线。
+ */
 .stage::before {
   content: '';
   position: absolute;
-  top: -19px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: var(--band);
   border: 1px solid var(--rule-strong);
@@ -231,6 +304,14 @@
   font-size: 11px;
   font-weight: 500;
   color: var(--ink-3);
+  /*
+   * max-width 不能省。
+   *
+   * 这里是个居中显示的 flex 子项, 宽度默认由内容决定 —— 盒子会比列还宽,
+   * 于是 app.css 里那套 overflow:hidden + text-overflow:ellipsis 完全没机会
+   * 生效, 列被压窄时相邻工序名会直接叠在一起。限宽之后才会真正走省略号。
+   */
+  max-width: 100%;
 }
 
 .stage[data-active='true'] .stage__name {
