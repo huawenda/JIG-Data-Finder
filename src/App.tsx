@@ -959,8 +959,40 @@ export default function App() {
         >
           加载
         </button>
-        <button className="btn" type="button" onClick={() => setShowSettings(true)}>
-          设置
+        {/*
+          导出当前页面看到的数据。
+          从表格左下角挪到「加载」右侧; 文案只留"导出"两个字 —— 至于导的是
+          哪张表, 交给 title 说, 免得按钮名字随页面长短不一、把顶栏撑变形。
+          用描边样式而非实心主色: 紧挨着的「加载」才是这一步的主操作, 两个
+          实心块并排会互相抢, 也让顶栏显重。
+        */}
+        <button
+          className="btn"
+          type="button"
+          disabled={!canQuery}
+          onClick={exportCurrent}
+          title={
+            drillActive
+              ? '导出透视明细'
+              : `导出${TABS.find((t) => t.id === tab)?.label}`
+          }
+        >
+          导出
+        </button>
+        {/* 设置: 收成图标 (滑块), 与旁边的"浅/深切换"图标并列 */}
+        <button
+          className="btn btn--icon"
+          type="button"
+          title="设置"
+          aria-label="设置"
+          onClick={() => setShowSettings(true)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+            <circle cx="9" cy="7" r="2" />
+            <circle cx="15" cy="12" r="2" />
+            <circle cx="8" cy="17" r="2" />
+          </svg>
         </button>
         {/*
           浅 / 深快捷切换: 图标显示"点下去会变成什么" ——
@@ -1277,20 +1309,6 @@ export default function App() {
               emptyHint={reviewEmpty.hint}
             />
           )}
-
-          <div className="actions">
-            <button
-              className="btn btn--primary btn--tall"
-              type="button"
-              disabled={!canQuery}
-              onClick={exportCurrent}
-            >
-              {drillActive
-                ? '导出透视明细'
-                : `导出${TABS.find((t) => t.id === tab)?.label}`}
-            </button>
-            <span className="actions__spacer" />
-          </div>
         </main>
       </div>
 

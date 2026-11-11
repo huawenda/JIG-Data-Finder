@@ -1174,19 +1174,6 @@ textarea {
   color: var(--ink-2);
 }
 
-/* ============ 底部操作条 ============ */
-
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.actions__spacer {
-  flex: 1;
-}
-
 /* ============ 对话框 ============ */
 
 .scrim {
