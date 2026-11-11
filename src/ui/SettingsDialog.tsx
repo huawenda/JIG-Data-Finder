@@ -3,7 +3,6 @@ import { createDefaultConfig } from '../core/config'
 import type { AppConfig } from '../core/config'
 import {
   blankPair,
-  movePair,
   orderedPairs,
   pairsToMapping,
   validateMappingPairs,
@@ -12,6 +11,7 @@ import type { MappingPair } from '../core/mapping'
 import type { ThemeMode } from '../core/theme'
 import { THEME_OPTIONS, prefersDark, themeLabel } from '../core/theme'
 import SizeMappingSection from './SizeMappingSection'
+import type { MapRow } from './SizeMappingSection'
 
 export interface SettingsDraft {
   defaultFileDialogPath: string
@@ -78,9 +78,15 @@ export default function SettingsDialog({
    *
    * 放在这里而不是映射面板内部: 左导航徽章要读它的条数/错误数, 保存时还要
    * 靠它决定"能不能存"。切分类时这个 state 一直活着, 所以来回切不丢改动。
+   *
+   * 每一行裹一个稳定 id: 列表要支持"拖着实时换位 + 补间动效", 需要 key 跟着
+   * 行本身走。若用下标当 key, 重排时 React 会按位复用 DOM, 内容会在原地瞬切,
+   * 动效就无从谈起。
    */
-  const [pairs, setPairs] = useState<MappingPair[]>(() =>
-    orderedPairs(config.jigSizeMapping, config.jigSizeMappingOrder),
+  const [rows, setRows] = useState<MapRow[]>(() =>
+    orderedPairs(config.jigSizeMapping, config.jigSizeMappingOrder).map(
+      (pair) => ({ id: nextRowId(), pair }),
+    ),
   )
   /*
    * 默认停在「文件」分类 (与融合前"点设置先看到文件路径"的观感一致)。
@@ -89,18 +95,33 @@ export default function SettingsDialog({
 
   const paneRef = useRef<HTMLDivElement>(null)
 
-  const errors = useMemo(() => validateMappingPairs(pairs), [pairs])
+  const errors = useMemo(
+    () => validateMappingPairs(rows.map((r) => r.pair)),
+    [rows],
+  )
   const errorCount = Object.keys(errors).length
 
   const patch = (p: Partial<SettingsDraft>) => setD((prev) => ({ ...prev, ...p }))
 
   const patchPair = (i: number, p: Partial<MappingPair>) =>
-    setPairs((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...p } : row)))
-  const addPair = () => setPairs((prev) => [...prev, blankPair()])
+    setRows((prev) =>
+      prev.map((row, idx) =>
+        idx === i ? { ...row, pair: { ...row.pair, ...p } } : row,
+      ),
+    )
+  const addPair = () =>
+    setRows((prev) => [...prev, { id: nextRowId(), pair: blankPair() }])
   const removePair = (i: number) =>
-    setPairs((prev) => prev.filter((_, idx) => idx !== i))
+    setRows((prev) => prev.filter((_, idx) => idx !== i))
+  /* 实时拖拽会高频调用; 就地 splice, 不做多余的对象拷贝 */
   const movePairAt = (from: number, to: number) =>
-    setPairs((prev) => movePair(prev, from, to))
+    setRows((prev) => {
+      if (from === to || from < 0 || from >= prev.length) return prev
+      const next = prev.slice()
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
 
   /*
    * 「恢复默认」恢复的是**内置默认映射**, 不是当前配置里的那份。
@@ -112,7 +133,12 @@ export default function SettingsDialog({
    */
   const restorePairs = () => {
     const def = createDefaultConfig()
-    setPairs(orderedPairs(def.jigSizeMapping, def.jigSizeMappingOrder))
+    setRows(
+      orderedPairs(def.jigSizeMapping, def.jigSizeMappingOrder).map((pair) => ({
+        id: nextRowId(),
+        pair,
+      })),
+    )
   }
 
   /*
@@ -151,7 +177,11 @@ export default function SettingsDialog({
       setCat('map')
       return
     }
-    onSave(d, pairsToMapping(pairs), pairs.map((p) => p.model))
+    onSave(
+      d,
+      pairsToMapping(rows.map((r) => r.pair)),
+      rows.map((r) => r.pair.model),
+    )
   }
 
   const switchCategory = (id: PrefsCategory) => {
@@ -203,7 +233,7 @@ export default function SettingsDialog({
                     className="prefs-nav__badge"
                     data-bad={errorCount > 0 ? 'true' : undefined}
                   >
-                    {errorCount > 0 ? `${errorCount} 处有误` : `${pairs.length} 条`}
+                    {errorCount > 0 ? `${errorCount} 处有误` : `${rows.length} 条`}
                   </span>
                 )}
               </button>
@@ -443,7 +473,7 @@ export default function SettingsDialog({
             {cat === 'map' && (
               <section role="tabpanel" aria-label="型号尺寸匹配">
                 <SizeMappingSection
-                  pairs={pairs}
+                  rows={rows}
                   errors={errors}
                   active={cat === 'map'}
                   onPatch={patchPair}
@@ -473,4 +503,17 @@ export default function SettingsDialog({
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo
   return Math.min(Math.max(Math.round(n), lo), hi)
+}
+
+/**
+ * 映射行的稳定 id。
+ *
+ * 只要"每次新建行拿到一个没出现过的值"就够了 —— 列表动效需要的是
+ * key 跟着行本身走, 而不是可读或可持久化。所以用一个模块级自增计数,
+ * 不必进 state (也就不会因为它变化而多渲染一次)。
+ */
+let rowIdSeq = 0
+function nextRowId(): string {
+  rowIdSeq += 1
+  return `map-row-${rowIdSeq}`
 }

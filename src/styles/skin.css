@@ -1,149 +1,85 @@
 /*
- * 「控制室」皮肤 —— 氛围层与形态改造
+ * 界面皮肤
  *
- * 在 app.css 之后加载 (见 App.tsx 的 import 顺序), 因此同名规则由本文件
- * 覆盖。本文件**只改表现**: 不新增类名依赖、不动任何结构语义、不碰
- * src/core/*.ts。app.css 那 1566 行的布局与虚拟滚动机制原样保留。
+ * 观感基准: shadcn/ui —— 平面、边框、克制的阴影; 不用彩色辉光/渐变/噪点。
+ * 配色全部来自 tokens.css (zinc 中性灰), 本文件只写结构与用量。
  *
- * 分四层:
- *   0. 氛围   网格底 + 双辉光 + 胶片颗粒
- *   1. 外壳   顶栏 / 侧栏 / 标签栏 / 状态轨
+ * 分五层:
+ *   0. 基础   选中态
+ *   1. 外壳   顶栏 / 侧栏 / 状态轨
  *   2. 记忆点 工序轨道 → 产线流
- *   3. 数据   仪器读数表 + 异常信号
- *   4. 浮层   工具条控件 / 对话框 / 提示条
- */
-
-/* ============================================================
-   0. 氛围: 网格底 + 双辉光 + 胶片颗粒
-   ============================================================ */
-
-/*
- * 页面底色由 body 承担 (app.css 里 body 用 --board 铺底)。
- * 这里换成"网格 + 两处辉光 + 底色"的多层背景, 让平面的纸变成有纵深的屏。
- * html 也要同步, 否则首帧露出的是 html 的纯色 canvas, 深色下会闪。
- */
-html {
-  background: var(--board);
-}
-
-body {
-  background:
-    radial-gradient(1100px 560px at 82% -14%, var(--accent-glow), transparent 62%),
-    radial-gradient(900px 520px at -8% 110%, var(--accent-glow), transparent 60%),
-    linear-gradient(var(--rule) 1px, transparent 1px) 0 0 / 100% 28px,
-    linear-gradient(90deg, var(--rule) 1px, transparent 1px) 0 0 / 28px 100%,
-    var(--board);
-  background-attachment: fixed;
-}
-
-/*
- * 胶片颗粒。
+ *   3. 数据   表格
+ *   4. 浮层   控件 / 对话框 / 提示条
  *
- * 深色大面积纯色会有"塑料感", 叠一层极淡的噪点就能让它像真实的面板。
- * 用 body::after 而非额外 DOM 节点 —— 不新增结构, 也不影响布局;
- * pointer-events:none 保证它绝不拦截任何交互。
+ * 主视图标签 (Tab) 的样式在 app.css 的 .tabs / .tab 里, 不在这里重复。
  */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
-}
 
-/* 选中态用强调色, 让"这是我选中的"这件事有统一语言 */
+/* ============================================================
+   0. 基础
+   ============================================================ */
+
+/*
+ * 页面底就是**纯色** (shadcn --background)。
+ *
+ * 早先那层方格底纹、彩色辉光、胶片颗粒都已去掉 —— 平面上只靠边框和层级
+ * 组织界面, 这才是 shadcn 的观感。body 的底色由 app.css 的
+ * `background: var(--board)` 提供, 这里不再接管。
+ */
+
 ::selection {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--board);
 }
 
 /* ============================================================
-   1. 外壳: 顶栏 / 侧栏 / 标签栏 / 状态轨
+   1. 外壳: 顶栏 / 侧栏 / 状态轨
    ============================================================ */
-
-/* ---- 顶栏: 控制台条 ---- */
 
 .head {
-  gap: 12px;
-  background: linear-gradient(180deg, var(--band), var(--surface));
-  border-bottom: 1px solid var(--rule-strong);
-  position: relative;
-}
-
-/* 底部一条贯穿的青绿渐隐光线 —— "仪器通电"的暗示 */
-.head::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-.head__mark {
-  align-items: center;
-  gap: 10px;
-  border-right-color: var(--rule-strong);
-}
-
-/* 品牌标记: 一颗自发光的小方块, 取代原来纯文字的标头 */
-.head__mark::before {
-  content: '';
-  width: 15px;
-  height: 15px;
-  flex: none;
-  border-radius: 5px;
-  background: var(--accent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 0 0 1px var(--rule-strong),
-    0 0 14px -2px var(--accent-glow);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
 }
 
 .head__name {
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   color: var(--ink);
 }
 
-/* 文件名胶囊: 暗槽 + 内辉光, 像仪器的"当前工件"读数 */
-.head__path {
-  background: var(--board);
-  border: 1px solid var(--rule-strong);
-  box-shadow: inset 0 0 24px -14px var(--accent-glow);
+.head__mark {
+  align-items: center;
+  border-right-color: var(--rule);
 }
 
-.head__path[data-empty='true'] {
-  box-shadow: none;
-}
-
-/* ---- 按钮: 主操作发光实心, 其余安静 ---- */
+/* ---- 按钮: 主色实心 / 次级描边 (shadcn Button) ---- */
 
 .btn {
   border-radius: var(--radius-sm);
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .btn:hover:not(:disabled) {
   background: var(--band);
-  border-color: var(--accent);
+  border-color: var(--rule-strong);
   color: var(--ink);
 }
 
-/*
- * 顶栏的图标按钮 (浅 / 深快捷切换)。
- *
- * 收成正方形、去掉左右内边距, 只放一个描边图标; 悬停才转成强调色 ——
- * 与旁边那些带文字的按钮区分开, 不抢"加载/设置"的注意力。
- */
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+/* 顶栏图标按钮 (浅/深快捷切换) */
 .btn--icon {
   width: 30px;
   padding: 0;
@@ -154,11 +90,7 @@ body::after {
 }
 
 .btn--icon:hover:not(:disabled) {
-  color: var(--accent);
-}
-
-.btn--icon:active:not(:disabled) {
-  transform: translateY(1px);
+  color: var(--ink);
 }
 
 .btn--icon svg {
@@ -169,163 +101,43 @@ body::after {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-.btn--icon:hover:not(:disabled) svg {
-  transform: rotate(18deg);
-}
-
-.btn--primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
-  border-color: transparent;
-  color: var(--on-accent);
-  font-weight: 700;
-  box-shadow:
-    0 0 0 1px var(--rule-strong),
-    0 8px 22px -14px var(--accent-glow);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
-  border-color: transparent;
-  color: var(--on-accent);
-  filter: brightness(1.06);
-}
-
-/* ---- 侧栏: 输入舱 ---- */
 
 .side {
-  background: linear-gradient(180deg, var(--surface), var(--board));
-  border-right: 1px solid var(--rule-strong);
+  background: var(--surface);
+  border-right: 1px solid var(--rule);
 }
 
 .side__label {
-  font-family: var(--font-display);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.side__input {
-  background: var(--board);
-  border: 1px solid var(--rule-strong);
-  box-shadow: inset 0 0 44px -24px var(--accent-glow);
-}
-
-.side__input:focus {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px var(--accent-ring),
-    inset 0 0 44px -22px var(--accent-glow);
-}
-
-/* 输入区扫描线: 极淡的横向纹理, 只作氛围, 不盖字 */
-.side__field::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: var(--radius);
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.5;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent 0 3px,
-    var(--accent-soft) 3px 4px
-  );
-}
-
-/* 开始查询 —— 致动按钮: 大写 + 拉字距, 像设备上的启动键 */
-.side .btn--primary.btn--tall {
-  font-family: var(--font-display);
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  border-radius: var(--radius);
-  box-shadow:
-    0 0 0 1px var(--rule-strong),
-    0 12px 28px -14px var(--accent-glow);
-}
-
-.side__hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
-
-/* ---- 标签栏: 通道选择器 ---- */
-
-.tabs {
-  border-bottom: 1px solid var(--rule-strong);
-}
-
-.tab {
-  padding: 9px 16px;
-  font-size: 12.5px;
-  font-weight: 500;
   letter-spacing: 0.02em;
-  color: var(--ink-3);
-}
-
-.tab:hover {
   color: var(--ink-2);
 }
 
-.tab[aria-selected='true'] {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-/* 选中态: 一道自发光的光条, 而不是平涂的 2px 线 */
-.tab[aria-selected='true']::after {
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
-}
-
-.tab__badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 20px;
-  font-size: 10.5px;
-  background: var(--band);
-  border: 1px solid var(--rule);
+.side__hint {
+  font-size: 11px;
   color: var(--ink-3);
-}
-
-.tab[aria-selected='true'] .tab__badge {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
 }
 
 /* ---- 状态轨: 仪表读数 ---- */
 
 .rail {
-  background: linear-gradient(180deg, var(--surface), var(--board));
-  border-top: 1px solid var(--rule-strong);
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
 }
 
-/* 状态灯点亮点: 加一圈与自身同色的辉光, 像真在发光 */
+/* 状态灯点: 实色小圆点, 不发光 */
 .rail__dot[data-state='ready'] {
   background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
 }
 
 .rail__dot[data-state='busy'] {
   background: var(--lamp);
-  box-shadow: 0 0 8px var(--lamp);
 }
 
 .rail__dot[data-state='error'] {
   background: var(--signal);
-  box-shadow: 0 0 8px var(--signal);
 }
 
 .rail__meta {
@@ -333,7 +145,7 @@ body::after {
 }
 
 .rail__sign {
-  border-left-color: var(--rule-strong);
+  border-left-color: var(--rule);
 }
 
 /* ============================================================
@@ -341,19 +153,16 @@ body::after {
    ============================================================ */
 
 /*
- * 结构完全沿用 StageRail.tsx 的 DOM (.rail-stages > .stage > bar/name/count),
- * 只用 CSS 把它从"一排带色条的卡片"改造成一条有节点的发光流线:
- *   .rail-stages::before —— 贯穿的连接线
- *   .rail-stages::after  —— 缓缓掠过的流动光带
- *   .stage::before       —— 每个工序的节点圆点 (有数发亮, 主力呼吸)
- *   .stage__bar          —— 移到节点下方, 长度表达相对量级
+ * 结构沿用 StageRail.tsx 的 DOM, 只用 CSS 把它画成一条带节点的流线:
+ *   连接线 + 每个工序一个节点圆点 + 节点下方的量条。
+ * 颜色一律中性 —— 节点"有数"= 实心墨色, "0 值"= 灰; 唯一的彩色留给状态色。
  */
 .rail-stages {
   position: relative;
   gap: 0;
   padding: 26px 12px 12px;
-  background: linear-gradient(180deg, var(--surface), var(--board));
-  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  border: 1px solid var(--rule);
   border-radius: var(--radius);
 }
 
@@ -365,37 +174,7 @@ body::after {
   right: 14px;
   top: 13px;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--rule-strong) 6%,
-    var(--rule-strong) 94%,
-    transparent
-  );
-}
-
-/* 流动光带: 让"产线在动"这件事被看见 */
-.rail-stages::after {
-  content: '';
-  position: absolute;
-  top: 11.5px;
-  left: -90px;
-  width: 90px;
-  height: 3px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  filter: blur(1px);
-  opacity: 0.7;
-  animation: jig-flow 5.5s linear infinite;
-}
-
-@keyframes jig-flow {
-  from {
-    left: -90px;
-  }
-  to {
-    left: 100%;
-  }
+  background: var(--rule);
 }
 
 .stage {
@@ -425,31 +204,24 @@ body::after {
   z-index: 2;
 }
 
-/* 有治具在制的工序: 节点转强调色并发光 */
+/* 有治具在制的工序: 节点转实心墨色 */
 .stage[data-active='true']::before {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px var(--accent-soft),
-    0 0 14px var(--accent-glow);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
-/* 主力工序: 节点呼吸 */
+/* 主力工序: 一圈很淡的中性光晕缓呼吸 (不做彩色脉冲) */
 .stage[data-lead='true']::before {
-  animation: jig-pulse 1.9s ease-in-out infinite;
+  animation: jig-pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes jig-pulse {
   0%,
   100% {
-    box-shadow:
-      0 0 0 3px var(--accent-soft),
-      0 0 14px var(--accent-glow);
+    box-shadow: 0 0 0 2px var(--accent-ring);
   }
   50% {
-    box-shadow:
-      0 0 0 7px transparent,
-      0 0 22px var(--accent-glow);
+    box-shadow: 0 0 0 6px transparent;
   }
 }
 
@@ -461,8 +233,7 @@ body::after {
   color: var(--ink-3);
 }
 
-.stage[data-active='true'] .stage__name,
-.stage[data-lead='true'] .stage__name {
+.stage[data-active='true'] .stage__name {
   color: var(--ink-2);
 }
 
@@ -479,22 +250,6 @@ body::after {
   color: var(--ink);
 }
 
-.stage[data-lead='true'] .stage__count {
-  color: var(--accent);
-  text-shadow: 0 0 16px var(--accent-glow);
-}
-
-/* 量条移到节点下方: 长度表达相对量级 (由内联 opacity 表达档位) */
-.stage__bar {
-  order: 3;
-  width: 100%;
-  height: 3px;
-  margin: 7px 0 0;
-  background: var(--accent);
-  border-radius: 3px;
-}
-
-/* 0 值工序整体沉入暗处, 但仍可读 —— 一眼看出"今天还没走到这里" */
 .stage[data-empty='true'] {
   opacity: 1;
 }
@@ -502,131 +257,115 @@ body::after {
 .stage[data-empty='true'] .stage__name,
 .stage[data-empty='true'] .stage__count {
   color: var(--ink-3);
-  opacity: 0.55;
+  opacity: 0.6;
+}
+
+/* 量条: 长度表达相对量级 (透明度由内联 style 给) */
+.stage__bar {
+  order: 3;
+  width: 100%;
+  height: 3px;
+  margin: 7px 0 0;
+  background: var(--ink-2);
+  border-radius: 3px;
 }
 
 /* ============================================================
-   3. 数据: 仪器读数表 + 异常信号
+   3. 数据: 表格
    ============================================================ */
 
 .grid-wrap {
   background: var(--surface);
-  border: 1px solid var(--rule-strong);
+  border: 1px solid var(--rule);
   border-radius: var(--radius);
 }
 
-/* 表头: 顶面微渐变, 像仪表盘上的刻字面板 */
 .grid__head {
-  background: linear-gradient(180deg, var(--band), var(--surface));
-  border-bottom: 1px solid var(--rule-strong);
+  background: var(--band);
+  border-bottom: 1px solid var(--rule);
 }
 
 .grid__th {
   color: var(--ink-2);
-  font-weight: 650;
+  font-weight: 600;
 }
 
-/* 行号列: 弱化的侧规 */
 .grid__td--idx {
   background: var(--band);
   color: var(--ink-3);
   border-right: 1px solid var(--rule);
 }
 
-/* 悬停: 极淡的一层"扫过" */
 .grid__tr:hover .grid__td {
-  background: var(--accent-soft);
+  background: var(--band);
 }
 
-/* 数值列走等宽字体 (与 Grid.tsx 的列宽测量保持一致), 仪器读数感 */
+/* 数值列走等宽字体 (与 Grid.tsx 的列宽测量保持一致) */
 .grid__td.num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- 小计行: P/N 用强调色, 分组一目了然 ---- */
+/* ---- 小计行: 底纹 + 加粗, 不用彩色 ---- */
 .grid__tr.is-sub .grid__td {
   background: var(--band);
-  border-bottom-color: var(--rule-strong);
-}
-
-.grid__tr.is-sub .grid__td--idx {
-  border-left: 2px solid var(--accent);
-}
-
-.grid__tr.is-sub .grid__td:first-child {
-  color: var(--accent);
-  font-weight: 700;
+  border-bottom-color: var(--rule);
 }
 
 .grid__tr.is-sub:hover .grid__td {
   background: var(--band);
 }
 
-/* ---- 总计行 (冻结): 更重的底 + 顶部封口线 ---- */
+.grid__tr.is-sub .grid__td:first-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---- 总计行 (冻结): 同底纹, 更重的字重 ---- */
 .grid__tr.is-total .grid__td {
-  background: linear-gradient(180deg, var(--band), var(--surface));
+  background: var(--band);
   font-weight: 700;
 }
 
 .grid__tr.is-total:hover .grid__td {
-  background: linear-gradient(180deg, var(--band), var(--surface));
+  background: var(--band);
 }
 
 .grid__tr.is-total .grid__td:first-child {
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 /*
- * 冻结总计行的框线刻意不在这里加。
+ * 冻结的总计行刻意不在这里加任何边框。
  *
- * 它是个 grid 容器, 若给"行"加 border, 线会横跨到列模板末尾的弹性填充轨道上,
- * 而数据行的底边是画在单元格上的 —— 填充区没有单元格, 于是右端会露出一段
- * 多出来的线。总计行的封口线一律交回 app.css 的 .grid__foot--end 机制处理
- * (那是按单元格画的, 范围与数据行一致)。
+ * 它是个 grid 容器, 给它加**行级** border 会横跨到列模板末尾的弹性填充轨道
+ * 上 —— 数据行的底边是画在单元格上的, 填充区没有单元格, 于是那条线会伸到
+ * 表格数据区之外; 滚动到底时又会和数据行自己的底边贴成一条双线。
+ * 总计行的封口线一律交给 app.css 的 .grid__foot--end 机制 (按单元格画)。
  */
+.grid__foot {
+  border-top: 0;
+}
 
 /* ---- 汇总列 ---- */
 .grid__td--total {
-  border-left: 1px solid var(--rule-strong);
+  border-left: 1px solid var(--rule);
   font-weight: 600;
 }
 
-/* ---- 计数格: 可下钻 ----
- *
- * 静止态一律用常规文字色, 强调色只留给**小计行与总计行** —— 让"哪几行是汇总"
- * 一眼可辨, 而不是整张表铺满青绿 (明细行占绝大多数, 全都上色等于没有重点)。
- * 可点击的提示交给悬停: 那一下的描边 + 淡底已经足够说明"这里能进去"。
- * 只影响透视表, 因为只有透视表才给 Grid 传 onCellClick。
- */
+/* ---- 计数格: 静态中性, 悬停才浮出可点提示 ---- */
 .grid__td--drill {
   color: var(--ink);
   font-weight: 600;
 }
 
-.grid__tr.is-sub .grid__td--drill,
-.grid__tr.is-total .grid__td--drill {
-  color: var(--accent);
-}
-
 .grid__td--drill:hover {
-  color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--band);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
 }
 
-.grid__tr.is-sub .grid__td--drill:hover,
-.grid__tr.is-total .grid__td--drill:hover {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-/* ---- 唯一允许的彩色: 尺寸不匹配 ----
- *
- * 不动画。透视/审查表可能有几百行异常, 每行都"呼吸"会变成噪音;
- * 左缘一道信号灯条 + 红字, 在静止状态就已经足够显眼, 且不干扰扫读。
- */
+/* ---- 尺寸不匹配: 唯一的红 ---- */
 .grid__td.bad {
   color: var(--signal);
   font-weight: 700;
@@ -641,21 +380,16 @@ body::after {
   background: var(--signal-soft);
 }
 
-/* ---- 空态: 一个金属渐变的视觉锤 ---- */
+/* ---- 空态 ---- */
 .empty__rule {
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
+  background: var(--rule-strong);
 }
 
 .empty__title {
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  color: var(--accent);
-  background: linear-gradient(90deg, var(--ink), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 
 /* ============================================================
@@ -663,21 +397,16 @@ body::after {
    ============================================================ */
 
 /* ---- 下拉框: 只换边框与悬停, 保留 app.css 里那个内联箭头 ---- */
-.select {
-  border-color: var(--rule-strong);
-  color: var(--ink);
-}
-
 .select:hover {
-  border-color: var(--accent);
+  border-color: var(--rule-strong);
 }
 
-/* ---- 开关: 发光轨道 ---- */
+/* ---- 开关: 选中即主色实心 (shadcn Switch) ---- */
 .switch input {
   width: 34px;
   height: 18px;
-  background: var(--band);
-  border: 1px solid var(--rule-strong);
+  background: var(--rule-strong);
+  border: 1px solid transparent;
 }
 
 .switch input::after {
@@ -685,74 +414,48 @@ body::after {
   height: 12px;
   top: 2px;
   left: 2px;
-  background: var(--ink-3);
+  background: var(--surface);
 }
 
 .switch input:checked {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .switch input:checked::after {
   transform: translateX(16px);
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
+  background: var(--on-accent);
 }
 
 /* ---- 分段按钮 ---- */
 .scope__btn[aria-pressed='true'] {
-  background: var(--accent-soft);
+  background: var(--band);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* ---- 对话框: 玻璃仪器 ---- */
+/* ---- 对话框 ---- */
 .scrim {
   background: var(--scrim);
 }
 
 .dialog {
-  border-radius: 10px;
-  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
   box-shadow:
-    0 0 0 1px var(--rule),
-    0 24px 60px -20px rgba(0, 0, 0, 0.6);
-}
-
-/* 顶缘一道状态光 */
-.dialog::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1px;
-  opacity: 0.6;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    0 10px 38px -10px rgba(0, 0, 0, 0.3),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
 }
 
 .dialog__foot {
-  background: var(--band);
-  border-top: 1px solid var(--rule-strong);
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
 }
 
-/* ---- 提示条: 底部滑入 ---- */
+/* ---- 提示条 ---- */
 .toast {
-  border-radius: 30px;
-  background: var(--band);
-  box-shadow: 0 20px 50px -22px rgba(0, 0, 0, 0.7);
-  animation: jig-rise 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes jig-rise {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 14px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow:
+    0 4px 12px -2px rgba(0, 0, 0, 0.16),
+    0 2px 6px -2px rgba(0, 0, 0, 0.1);
 }

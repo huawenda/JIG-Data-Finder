@@ -1,20 +1,32 @@
 /*
  * JIG Data Finder — 设计令牌
  *
- * 主题:「控制室」。把车间看板升级成一台发光的检测仪器 ——
- * 深色优先、单一磷光强调色、结构与信号各司其职。
+ * 配色基准: shadcn/ui 默认主题 (zinc 中性灰)。
  *
- * 核心约定:
- *   1. 同时只存在一种"主张力色" —— --accent (磷光青绿), 只在"活的东西"
- *      上出现: 选中、焦点、计数、在制工序。静态结构一律不上色。
- *   2. --signal (红宝石) 专供尺寸不匹配/未找到, --lamp (琥珀) 专供
- *      载入中/生产中。两个信号色只在"有状态"的地方点亮, 不做装饰。
+ * ## 为什么整体换成中性灰
+ *
+ * 早先那套灰全都带一点点青绿偏色 (--ink #e8f3f0 / --ink-2 #8fa3a0 /
+ * --board #e6ebec / --surface #0f1618 都是偏绿的灰), 又叠了彩色辉光与胶片
+ * 颗粒 —— 单看每处都"有点味道", 合起来就显脏。现在换成**纯中性、无色偏**
+ * 的灰阶, 并把装饰性的彩色辉光/颗粒全部去掉, 只靠边框、层级和一点点阴影
+ * 组织界面。
+ *
+ * ## 核心约定
+ *
+ *   1. 主张力色 --accent 按 shadcn 惯例就是"主色": 浅色近黑 (#18181b)、
+ *      深色近白 (#fafafa)。它不再是某一个彩色品牌色, 于是整个界面基本是
+ *      中性的 —— 这正好把颜色预算全留给状态色。
+ *   2. 状态色是界面上**唯一**的彩色, 且只在有状态的地方出现:
+ *        --signal  红   尺寸不匹配 / 未找到
+ *        --lamp    琥珀 载入中 / 生产中
+ *        --ok      绿   判定通过
  *   3. 数字等宽 + tabular-nums, 纵向可扫读比较。
- *   4. 工序是有序的, 画成一条发光的产线流 (见 skin.css)。
+ *   4. 工序是有序的, 画成一条产线流 (见 skin.css)。
  *
- * 字体:
+ * ## 字体 (与配色无关, 但同样是离线约束)
+ *
  *   --font-display 只在界面外壳(标题/标签/仪表读数)使用, 不参与表格列宽测量,
- *                  因此可以安全地引入 Bahnschrift 这类更有性格的字体。
+ *                  因此可以安全地用 Bahnschrift 这类更有性格的字体。
  *   --font-ui / --font-mono 必须保持系统字体 —— Grid.tsx 用 canvas 按这两个
  *                  变量的真实字体串测量列宽, 一旦换成异步加载的网络字体,
  *                  首帧测出的宽度与实际渲染会不一致, 末列会被裁字。
@@ -31,45 +43,41 @@
    */
   color-scheme: light;
 
-  /* ---- 墨色 (冷调近黑, 非纯黑) ---- */
-  --ink: #0b1415;
-  --ink-2: #4b5b5a;
-  --ink-3: #84918f;
+  /* ---- 墨色: zinc 灰阶, 三级信息层级 ---- */
+  --ink: #09090b; /* 正文 / 标题 */
+  --ink-2: #71717a; /* 次要文字 */
+  --ink-3: #a1a1aa; /* 弱化文字 / 占位 */
 
   /* ---- 界面结构 ---- */
-  --rule: rgba(8, 24, 24, 0.1);
-  --rule-strong: rgba(8, 24, 24, 0.22);
-  --board: #e6ebec; /* 页面底: 冷纸灰, 不是纯白 */
-  --surface: #ffffff; /* 面板: 抬升面 */
-  --band: #eef3f3; /* 次级面: 表头/小计/脚注 */
+  --rule: #e4e4e7; /* 常规分隔线 / 边框 */
+  --rule-strong: #d4d4d8; /* 需要更明确的结构线 */
+  --board: #ffffff; /* 页面底 (shadcn --background) */
+  --surface: #ffffff; /* 面板 (shadcn --card, 与页面同色, 靠边框区分) */
+  --band: #f4f4f5; /* 次级面: 表头 / 小计 / 悬停 (shadcn --muted) */
 
-  /* ---- 主张力: 检测灯 · 磷光青绿 (白天压深, 保证白底对比) ---- */
-  --accent: #0a8f77;
-  --accent-hover: #0a7a66;
-  --accent-soft: rgba(10, 143, 119, 0.1);
-  --accent-ring: rgba(10, 143, 119, 0.28);
-  --accent-glow: rgba(10, 143, 119, 0.18); /* 只在"活"元素上铺的辉光 */
+  /* ---- 主张力 = 主色: 近黑 (shadcn --primary) ---- */
+  --accent: #18181b;
+  --accent-hover: #27272a;
+  --accent-soft: #f4f4f5; /* 选中/悬停底 */
+  --accent-ring: rgba(9, 9, 11, 0.12);
 
-  /* 强调色底上的文字 */
-  --on-accent: #ffffff;
+  /* 主色底上的文字 (shadcn --primary-foreground) */
+  --on-accent: #fafafa;
 
-  /* ---- 设备信号色 ---- */
-  --signal: #cf3a2c; /* 尺寸不匹配 / 未找到 — 信号灯红 */
-  --signal-soft: rgba(207, 58, 44, 0.1);
-  --lamp: #b26a08; /* 载入中 / 生产中 — 设备运行灯 */
-  --ok: #0f8f66;
+  /* ---- 状态色: 界面上唯一的彩色 ---- */
+  --signal: #ef4444;
+  --signal-soft: rgba(239, 68, 68, 0.1);
+  --lamp: #b45309; /* 载入中 / 生产中 */
+  --ok: #15803d;
 
   /* 遮罩 (对话框背板), 随主题翻转 */
-  --scrim: rgba(12, 24, 24, 0.3);
+  --scrim: rgba(0, 0, 0, 0.45);
 
   /* ---- 字体 ---- */
-  /* 外壳专用: 工业技术感, 不参与列宽测量 */
   --font-display: 'Bahnschrift', 'Segoe UI Variable Display',
     'Microsoft YaHei UI', system-ui, sans-serif;
-  /* 界面正文: 系统栈, 离线且可被 canvas 精确测量 */
   --font-ui: 'Segoe UI Variable Display', 'Microsoft YaHei UI', 'DengXian',
     system-ui, sans-serif;
-  /* 数据/编码: 等宽, 仪器读数感 */
   --font-mono: 'Cascadia Mono', Consolas, 'Microsoft YaHei UI', ui-monospace,
     monospace;
 
@@ -80,42 +88,41 @@
   --row-h: 30px;
   --side-w: 260px;
 
-  --radius-sm: 4px;
-  --radius: 7px;
+  --radius-sm: 6px;
+  --radius: 8px;
 }
 
 /*
- * 深色: 方案的主场 —— 暗场、发光。
+ * 深色: 页面与面板同为近黑 (#09090b), 结构同样靠边框区分。
  *
- * 强调色在暗底上提亮到 #2fe3c0, 白字对比不足, 所以 --on-accent 用深墨。
- * 所有随背景翻转的令牌都在这里补齐 (含 --accent-glow / --scrim),
- * 漏掉哪个, 深色下就会残留浅色值。
+ * 主色在深色下翻成近白 (#fafafa) —— 这是 shadcn 的做法, 白按钮/白选中点在
+ * 暗底上对比最强; 所以 --on-accent 用深墨。
+ * 所有随背景翻转的令牌都在这里补齐, 漏掉哪个深色下就会残留浅色值。
  */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --ink: #e8f3f0;
-  --ink-2: #8fa3a0;
-  --ink-3: #5a6a68;
+  --ink: #fafafa;
+  --ink-2: #a1a1aa;
+  --ink-3: #71717a;
 
-  --rule: rgba(255, 255, 255, 0.075);
-  --rule-strong: rgba(255, 255, 255, 0.15);
-  --board: #070a0b;
-  --surface: #0f1618;
-  --band: #141d20;
+  --rule: #27272a;
+  --rule-strong: #3f3f46;
+  --board: #09090b;
+  --surface: #09090b;
+  --band: #18181b;
 
-  --accent: #2fe3c0;
-  --accent-hover: #57f0d4;
-  --accent-soft: rgba(47, 227, 192, 0.12);
-  --accent-ring: rgba(47, 227, 192, 0.35);
-  --accent-glow: rgba(47, 227, 192, 0.28);
+  --accent: #fafafa;
+  --accent-hover: #e4e4e7;
+  --accent-soft: #27272a;
+  --accent-ring: rgba(250, 250, 250, 0.2);
 
-  --on-accent: #04120f;
+  --on-accent: #18181b;
 
-  --signal: #ff5d4f;
-  --signal-soft: rgba(255, 93, 79, 0.13);
-  --lamp: #f4a63c;
-  --ok: #33d69f;
+  --signal: #f87171;
+  --signal-soft: rgba(248, 113, 113, 0.14);
+  --lamp: #fbbf24;
+  --ok: #4ade80;
 
-  --scrim: rgba(2, 5, 6, 0.62);
+  --scrim: rgba(0, 0, 0, 0.7);
 }

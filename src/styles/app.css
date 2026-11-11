@@ -348,52 +348,77 @@ textarea {
   flex: 1 1 auto;
 }
 
-/* ---- 标签页: 下划线式, 非圆角卡片 ---- */
+/* ---- 主视图标签: shadcn Tabs 的做法 ---- */
 
+/*
+ * 一条 muted 底色的凹槽轨道, 选中项是"抬起的卡片" —— 纯白/纯黑的小 pill,
+ * 带描边和极轻的投影。不用彩色: 整个界面是中性的, 颜色预算全留给状态色
+ * (红=不匹配 / 琥珀=载入中 / 绿=通过)。
+ */
 .tabs {
-  display: flex;
+  display: inline-flex;
   align-items: stretch;
   gap: 2px;
-  border-bottom: 1px solid var(--rule);
+  /* 只占内容宽, 不拉满整行 */
+  align-self: flex-start;
+  padding: 3px;
+  background: var(--band);
+  border-radius: var(--radius-sm);
 }
 
 .tab {
   position: relative;
-  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
   font: inherit;
-  font-size: 13px;
-  font-weight: 550;
-  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color 120ms;
+  white-space: nowrap;
+  transition: background 120ms, color 120ms, box-shadow 120ms,
+    border-color 120ms;
 }
 
 .tab:hover {
-  color: var(--ink-2);
-}
-
-.tab[aria-selected='true'] {
   color: var(--ink);
 }
 
-.tab[aria-selected='true']::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: -1px;
-  height: 2px;
-  background: var(--accent);
+/* 选中: 抬起的 pill */
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--surface);
+  border-color: var(--rule);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 计数徽章 */
 .tab__badge {
-  margin-left: 7px;
+  padding: 0 6px;
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
+  line-height: 15px;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: var(--board);
   color: var(--ink-3);
+}
+
+.tab[aria-selected='true'] .tab__badge {
+  border-color: var(--rule-strong);
+  color: var(--ink-2);
 }
 
 /* ============ 工序轨道 (记忆点) ============ */
@@ -719,6 +744,20 @@ textarea {
   .grid__body
   > .grid__tr:last-child
   .grid__td {
+  border-bottom: 0;
+}
+
+/*
+ * 非冻结表 (查询结果 / 数据审查 / 透视明细): 最后一条数据行的底边会和卡片
+ * 底框贴成 2px 的双线 —— 去掉行的底边, 底边统一交给卡片边框来画。
+ *
+ * 只对 data-freeze='false' 生效。冻结表 (全量透视) 里最后一条明细的底边是
+ * "总计行上方的分隔线", 必须留着, 所以不能一刀切。
+ *
+ * 虚拟滚动下 DOM 里的最后一行通常落在 overscan 区 (视口之外, 看不到), 只有
+ * 真正滚到底、那一行露出来的时候这条规则才可见 —— 而那正是需要它的时刻。
+ */
+.grid-wrap[data-freeze='false'] .grid__body > .grid__tr:last-child .grid__td {
   border-bottom: 0;
 }
 
@@ -1352,28 +1391,16 @@ textarea {
   color: var(--ink);
 }
 
-/* 选中态: 左侧竖规 + 淡底 —— 沿用工序轨道节点的语言 */
-.prefs-nav__item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  opacity: 0;
-  transition: opacity 140ms;
-}
-
+/*
+ * 选中态: 浅底 + 加粗字重 (shadcn 侧栏的做法)。
+ *
+ * 早先用的是"左侧 2px 强调色竖规", 那在彩色主题下是点睛, 但在中性配色里
+ * 会变成一条突兀的黑/白粗线, 反而比文字更抢眼 —— 去掉。
+ */
 .prefs-nav__item[aria-selected='true'] {
   background: var(--accent-soft);
   color: var(--ink);
   font-weight: 600;
-}
-
-.prefs-nav__item[aria-selected='true']::before {
-  opacity: 1;
 }
 
 .prefs-nav__badge {
@@ -1564,7 +1591,7 @@ textarea {
 /*
  * 拖拽手柄。
  *
- * 用按钮而不是 <div draggable>: 变成 <button> 之后, 键盘用户能 Tab 到它、
+ * 用 <button> 而不是让整行带 draggable: 是按钮, 键盘用户就能 Tab 到它、
  * 屏幕阅读器会念出 aria-label, 而行内那对 ↑↓ 才是无鼠标时的正式通道 ——
  * 拖拽在这里只是快捷方式, 不能是唯一途径。
  *
@@ -1628,9 +1655,38 @@ textarea {
   opacity: 0.2;
 }
 
-/* 拖拽经过的目标行: 上方一条强调色细线, 表示会插到这行之前 */
-.map__row[data-over='true'] {
-  box-shadow: inset 0 2px 0 var(--accent);
+/*
+ * 正在拖的行: 抬起来 —— 不透明底 + 强调色描边 + 压过其余行。
+ *
+ * 描边必须用 **inset**, 投影必须很小。原因: 行正好铺满表格内容宽, 而
+ *   - 外描边 (0 0 0 1px) 画在行的边框盒**之外**, 那 1px 恰好落在表格两侧
+ *     的框线上, 把框线盖掉;
+ *   - 大半径投影 (28px 模糊) 在左右各溢出十几像素, 同样把细框线"吃"掉。
+ * 现在所有装饰都不出行的边框盒, 抬升感交给"不透明底 + 内描边 + 一点点下投影"。
+ *
+ * 另外刻意**不写 transform**: 位移由 JS 按指针位置写内联 transform, 这里也不加
+ * transform 过渡 —— 两者同时存在会互相打架 (内联值一变就被过渡拖慢, 行会跟不上
+ * 指针)。其它行的"让位"动画由 JS 的 FLIP (Web Animations) 负责。
+ */
+.map__row[data-dragging='true'] {
+  position: relative;
+  z-index: 3;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 2px 3px -1px rgba(0, 0, 0, 0.3);
+}
+
+/* 隔行底色会盖掉上面的抬升底色, 单独再压一次 */
+.map__row[data-dragging='true']:nth-child(even) {
+  background: var(--surface);
+}
+
+/* 拖拽期间整块列表显示"抓取中"光标 */
+.map__body[data-dragging='true'],
+.map__body[data-dragging='true'] .map__grip {
+  cursor: grabbing;
 }
 
 /* 错误行整行提示, 但只有输入框本身转红 —— 信号色留给真正的问题 */
