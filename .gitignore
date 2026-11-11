@@ -74,6 +74,8 @@ Thumbs.db
 !docs/domain-rules.md
 # GitHub 仓库首页说明必须入库
 !README.md
+# 界面美化方案（设计说明 + 高保真概念稿）需入库
+!界面美化方案/美化方案.md
 
 # ===== Tauri / 前端 (v2) =====
 node_modules/

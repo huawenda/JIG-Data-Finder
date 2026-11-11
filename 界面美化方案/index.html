@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JIG Data Finder · 控制室皮肤（概念稿）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+  rel="stylesheet"
+/>
+<style>
+/* ============================================================
+   JIG Data Finder —「控制室 / 精密仪表台」概念皮肤
+   深色优先 · 单一磷光强调色 · 发光检测仪器的观感
+   ============================================================ */
+
+*,*::before,*::after { box-sizing: border-box; }
+
+:root{
+  --font-display:'Chakra Petch','Noto Sans SC',sans-serif;
+  --font-mono:'IBM Plex Mono','Cascadia Mono',monospace;
+  --font-cjk:'Noto Sans SC',system-ui,sans-serif;
+
+  --gap:14px;
+  --top-h:56px;
+  --foot-h:30px;
+  --bay-w:290px;
+  --row-h:32px;
+  --radius:7px;
+  --radius-sm:4px;
+
+  /* 主张力色 = 检测灯的磷光青绿，配琥珀(生产中)/红宝石(异常)两个信号色 */
+  --accent:#2fe3c0;
+  --accent-dim:#1f9e86;
+  --accent-deep:#0e3b35;
+  --accent-glow:rgba(47,227,192,.28);
+  --amber:#f4a63c;
+  --ruby:#ff5d4f;
+  --ruby-soft:rgba(255,93,79,.13);
+  --good:#33d69f;
+
+  --bg-0:#070a0b;
+  --bg-1:#0b1113;
+  --bg-2:#0f1618;
+  --bg-3:#141d20;
+  --line:rgba(255,255,255,.075);
+  --line-strong:rgba(255,255,255,.15);
+  --text:#e8f3f0;
+  --text-dim:#8fa3a0;
+  --text-faint:#5a6a68;
+  --shot:rgba(255,255,255,.05);
+}
+
+:root[data-theme='light']{
+  --accent:#0a8f77;
+  --accent-dim:#0a6e5c;
+  --accent-deep:#d7f2ec;
+  --accent-glow:rgba(10,143,119,.16);
+  --amber:#a9690a;
+  --ruby:#cf3a2c;
+  --ruby-soft:rgba(207,58,44,.10);
+  --good:#0f8f66;
+
+  --bg-0:#e6ebec;
+  --bg-1:#f4f7f7;
+  --bg-2:#ffffff;
+  --bg-3:#eef3f3;
+  --line:rgba(8,24,24,.09);
+  --line-strong:rgba(8,24,24,.20);
+  --text:#0b1415;
+  --text-dim:#4b5b5a;
+  --text-faint:#84918f;
+  --shot:rgba(10,30,30,.035);
+}
+
+html,body{height:100%;}
+body{
+  margin:0;
+  font-family:var(--font-cjk);
+  color:var(--text);
+  background:
+    radial-gradient(1100px 560px at 82% -14%, var(--accent-glow), transparent 62%),
+    radial-gradient(900px 500px at -6% 108%, var(--accent-glow), transparent 60%),
+    linear-gradient(var(--line) 1px,transparent 1px) 0 0/100% 28px,
+    linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/28px 100%,
+    var(--bg-0);
+  background-attachment:fixed;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* 胶片颗粒 —— 让深色不"塑料" */
+.grain{
+  position:fixed; inset:0; z-index:99; pointer-events:none; opacity:.05;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  mix-blend-mode:overlay;
+}
+
+.app{
+  height:100%;
+  display:grid;
+  grid-template-rows:var(--top-h) 1fr var(--foot-h);
+}
+
+/* ---------------- 顶栏：控制台条 ---------------- */
+.topbar{
+  display:flex; align-items:center; gap:16px;
+  padding:0 16px;
+  background:linear-gradient(180deg,var(--bg-3),var(--bg-1));
+  border-bottom:1px solid var(--line-strong);
+  position:relative;
+}
+.topbar::after{
+  content:''; position:absolute; left:0; right:0; bottom:-1px; height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:.5;
+}
+.brand{display:flex; align-items:center; gap:11px; min-width:0;}
+.brand__mark{
+  width:30px; height:30px; border-radius:6px; flex:none;
+  display:grid; place-items:center;
+  background:radial-gradient(circle at 32% 26%, var(--accent), var(--accent-dim) 70%);
+  box-shadow:0 0 0 1px var(--line-strong), 0 0 18px -2px var(--accent-glow);
+}
+.brand__mark svg{width:17px;height:17px;}
+:root[data-theme='dark'] .brand__mark svg{stroke:#04120f;}
+:root[data-theme='light'] .brand__mark svg{stroke:#eafffa;}
+.brand__name{
+  font-family:var(--font-display); font-weight:700; font-size:15px;
+  letter-spacing:.14em; line-height:1;
+}
+.brand__sub{
+  font-size:10.5px; color:var(--text-faint); letter-spacing:.22em;
+  margin-top:3px; font-family:var(--font-display);
+}
+
+.filechip{
+  display:flex; align-items:center; gap:9px;
+  margin-left:8px; padding:6px 12px; flex:1 1 auto; max-width:420px;
+  background:var(--bg-0); border:1px solid var(--line);
+  border-radius:var(--radius-sm); min-width:0;
+}
+.filechip .dot{
+  width:7px;height:7px;border-radius:50%;flex:none;
+  background:var(--good); box-shadow:0 0 8px var(--good);
+}
+.filechip .name{
+  font-family:var(--font-mono); font-size:12px; color:var(--text-dim);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.topbar__spacer{flex:1;}
+
+.btn{
+  font-family:var(--font-cjk); font-size:12.5px; font-weight:500;
+  color:var(--text); background:var(--bg-2);
+  border:1px solid var(--line-strong); border-radius:var(--radius-sm);
+  padding:7px 14px; cursor:pointer; letter-spacing:.02em;
+  transition:.16s ease;
+}
+.btn:hover{background:var(--bg-3); border-color:var(--accent-dim);}
+.btn--primary{
+  color:#04120f; border:none;
+  background:linear-gradient(180deg,var(--accent),var(--accent-dim));
+  box-shadow:0 0 0 1px var(--line-strong), 0 6px 20px -8px var(--accent-glow);
+  font-weight:700;
+}
+:root[data-theme='light'] .btn--primary{color:#fff;}
+.btn--primary:hover{filter:brightness(1.08);}
+.btn--icon{padding:7px 10px; display:grid; place-items:center;}
+.btn svg{width:14px;height:14px; stroke:currentColor; fill:none; stroke-width:1.7;}
+
+/* ---------------- 工作区 ---------------- */
+.workspace{display:grid; grid-template-columns:var(--bay-w) 1fr; min-height:0;}
+
+/* 侧栏：输入舱 */
+.bay{
+  background:linear-gradient(180deg,var(--bg-1),var(--bg-0));
+  border-right:1px solid var(--line-strong);
+  display:flex; flex-direction:column; min-height:0; padding:14px;
+  gap:12px;
+}
+.bay__head{display:flex; align-items:center; justify-content:space-between;}
+.eyebrow{
+  font-family:var(--font-display); font-size:10.5px; font-weight:600;
+  letter-spacing:.24em; color:var(--text-faint); text-transform:uppercase;
+}
+.link{
+  font-size:11.5px; color:var(--text-dim); cursor:pointer;
+  border-bottom:1px dashed transparent;
+}
+.link:hover{color:var(--accent); border-bottom-color:var(--accent-dim);}
+
+.bay__pad{
+  position:relative; flex:1; min-height:0;
+  border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:var(--bg-0); overflow:hidden;
+  box-shadow:inset 0 0 40px -20px var(--accent-glow);
+}
+.bay__pad::before{ /* 扫描线 */
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,var(--shot) 3px 4px);
+  opacity:.6;
+}
+.bay__pad textarea{
+  position:absolute; inset:0; width:100%; height:100%; resize:none;
+  border:none; outline:none; background:transparent; padding:12px 13px;
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.85;
+  color:var(--text); letter-spacing:.02em;
+}
+.bay__pad textarea::placeholder{color:var(--text-faint);}
+.bay__corners{position:absolute; inset:0; pointer-events:none;}
+.bay__corners i{position:absolute; width:9px; height:9px; border:1px solid var(--accent-dim); opacity:.6;}
+.bay__corners i:nth-child(1){top:5px;left:5px;border-right:0;border-bottom:0;}
+.bay__corners i:nth-child(2){top:5px;right:5px;border-left:0;border-bottom:0;}
+.bay__corners i:nth-child(3){bottom:5px;left:5px;border-right:0;border-top:0;}
+.bay__corners i:nth-child(4){bottom:5px;right:5px;border-left:0;border-top:0;}
+
+.actuator{
+  width:100%; padding:11px; cursor:pointer; border:none; border-radius:var(--radius);
+  font-family:var(--font-display); font-size:13px; font-weight:700; letter-spacing:.16em;
+  color:#04120f; background:linear-gradient(180deg,var(--accent),var(--accent-dim));
+  box-shadow:0 0 0 1px var(--line-strong), 0 10px 26px -12px var(--accent-glow);
+  transition:.16s ease; text-transform:uppercase;
+}
+:root[data-theme='light'] .actuator{color:#fff;}
+.actuator:hover{filter:brightness(1.07);}
+.actuator:active{transform:translateY(1px);}
+.hint{font-size:10.5px; color:var(--text-faint); letter-spacing:.03em; line-height:1.6;}
+.hint kbd{
+  font-family:var(--font-mono); font-size:10px; padding:1px 5px;
+  border:1px solid var(--line-strong); border-radius:3px; background:var(--bg-2);
+  color:var(--text-dim);
+}
+
+/* ---------------- 主舞台 ---------------- */
+.main{display:flex; flex-direction:column; min-width:0; min-height:0;}
+
+/* 标签栏 */
+.tabs{
+  display:flex; align-items:stretch; gap:2px; padding:0 12px;
+  background:var(--bg-1); border-bottom:1px solid var(--line-strong);
+  min-height:46px;
+}
+.tab{
+  position:relative; display:flex; align-items:center; gap:8px;
+  padding:0 16px; cursor:pointer; border:none; background:none;
+  color:var(--text-dim); font-family:var(--font-cjk); font-size:12.5px; font-weight:500;
+  letter-spacing:.03em; transition:.16s ease;
+}
+.tab:hover{color:var(--text);}
+.tab[aria-selected='true']{color:var(--text); font-weight:700;}
+.tab::after{
+  content:''; position:absolute; left:12px; right:12px; bottom:-1px; height:2px;
+  background:var(--accent); border-radius:2px 2px 0 0;
+  box-shadow:0 0 12px var(--accent-glow);
+  transform:scaleX(0); transition:transform .22s cubic-bezier(.4,0,.2,1);
+}
+.tab[aria-selected='true']::after{transform:scaleX(1);}
+.tab__num{
+  font-family:var(--font-mono); font-size:10.5px; padding:1px 7px; border-radius:20px;
+  background:var(--bg-3); color:var(--text-dim); border:1px solid var(--line);
+}
+.tab[aria-selected='true'] .tab__num{color:var(--accent); border-color:var(--accent-dim); background:var(--accent-deep);}
+
+.tabs__tools{margin-left:auto; display:flex; align-items:center; gap:14px;}
+
+/* 开关 */
+.switch{display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none;}
+.switch__label{font-size:11.5px; color:var(--text-dim);}
+.switch__track{
+  width:36px; height:19px; border-radius:20px; background:var(--bg-3);
+  border:1px solid var(--line-strong); position:relative; transition:.18s;
+}
+.switch__track::after{
+  content:''; position:absolute; top:2px; left:2px; width:13px; height:13px;
+  border-radius:50%; background:var(--text-faint); transition:.18s;
+}
+.switch[data-on='true'] .switch__track{background:var(--accent-deep); border-color:var(--accent-dim);}
+.switch[data-on='true'] .switch__track::after{
+  left:19px; background:var(--accent); box-shadow:0 0 10px var(--accent-glow);
+}
+.switch[data-on='true'] .switch__label{color:var(--text);}
+
+/* 视图容器 */
+.views{flex:1; min-height:0; position:relative; overflow:hidden;}
+.view{
+  position:absolute; inset:0; display:none; flex-direction:column;
+  padding:14px 16px; gap:12px; overflow:auto;
+}
+.view[data-active='true']{display:flex; animation:viewIn .34s cubic-bezier(.4,0,.2,1);}
+@keyframes viewIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+
+/* ---------------- 工序轨道 ---------------- */
+.rail{
+  border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--bg-2),var(--bg-1));
+  padding:16px 16px 14px; overflow-x:auto; flex:none;
+}
+.rail__cap{display:flex; align-items:baseline; gap:10px; margin-bottom:14px;}
+.rail__cap .t{
+  font-family:var(--font-display); font-size:11px; font-weight:600;
+  letter-spacing:.2em; color:var(--text-dim); text-transform:uppercase;
+}
+.rail__cap .d{font-size:11px; color:var(--text-faint);}
+.rail__flow{position:relative; display:flex; min-width:max-content; padding-top:22px;}
+.rail__flow::before{ /* 流线 */
+  content:''; position:absolute; left:8px; right:8px; top:9px; height:1px;
+  background:linear-gradient(90deg,transparent,var(--line-strong) 8%,var(--line-strong) 92%,transparent);
+}
+.rail__flow::after{ /* 流动光 */
+  content:''; position:absolute; top:8px; height:3px; width:80px; border-radius:3px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  filter:blur(1px); opacity:.75;
+  animation:flow 5.5s linear infinite;
+}
+@keyframes flow{from{left:-80px;} to{left:100%;}}
+
+.node{
+  position:relative; flex:none; width:118px; padding:0 8px;
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+}
+.node__pip{
+  position:absolute; top:-18px; width:13px; height:13px; border-radius:50%;
+  background:var(--bg-3); border:1px solid var(--line-strong); z-index:2;
+}
+.node[data-state='on'] .node__pip{
+  background:var(--accent); border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-deep), 0 0 14px var(--accent-glow);
+}
+.node[data-state='lead'] .node__pip{animation:pulse 1.9s ease-in-out infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--accent-deep),0 0 14px var(--accent-glow);} 50%{box-shadow:0 0 0 6px transparent,0 0 22px var(--accent-glow);}}
+.node__name{
+  font-size:11px; color:var(--text-faint); line-height:1.35; height:30px;
+  display:flex; align-items:center; justify-content:center; margin-top:8px;
+}
+.node[data-state='on'] .node__name,.node[data-state='lead'] .node__name{color:var(--text-dim);}
+.node__count{
+  font-family:var(--font-mono); font-size:19px; font-weight:600; margin-top:2px;
+  color:var(--text-faint); font-variant-numeric:tabular-nums;
+}
+.node[data-state='on'] .node__count{color:var(--text);}
+.node[data-state='lead'] .node__count{color:var(--accent); text-shadow:0 0 16px var(--accent-glow);}
+.node__bar{margin-top:7px; width:100%; height:3px; border-radius:3px; background:var(--bg-3); overflow:hidden;}
+.node__bar i{display:block; height:100%; background:var(--accent); border-radius:3px; opacity:.75;}
+
+/* ---------------- 数据网格 ---------------- */
+.gridwrap{
+  flex:1; min-height:0; border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:var(--bg-1); overflow:hidden; display:flex; flex-direction:column;
+}
+.gridscroll{overflow:auto; flex:1;}
+table.grid{border-collapse:separate; border-spacing:0; width:100%; font-size:12.5px;}
+.grid thead th{
+  position:sticky; top:0; z-index:3;
+  background:linear-gradient(180deg,var(--bg-3),var(--bg-2));
+  border-bottom:1px solid var(--line-strong);
+  font-family:var(--font-display); font-weight:600; font-size:10.5px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);
+  text-align:left; padding:11px 14px; white-space:nowrap;
+}
+.grid tbody td{
+  padding:0 14px; height:var(--row-h); color:var(--text);
+  border-bottom:1px solid var(--line); white-space:nowrap;
+}
+.grid tbody tr{transition:background .14s;}
+.grid tbody tr:hover td{background:var(--shot);}
+.grid .mono{font-family:var(--font-mono); font-size:12px; letter-spacing:.02em;}
+.grid .num{font-family:var(--font-mono); font-variant-numeric:tabular-nums; text-align:right;}
+.grid th.num{text-align:right;}
+.grid .muted{color:var(--text-faint);}
+.grid .pn{font-family:var(--font-mono); color:var(--text); font-weight:500;}
+
+/* 小计 / 总计行 */
+.grid tr.row--subtotal td{background:var(--bg-2); font-weight:700;}
+.grid tr.row--subtotal .pn{color:var(--accent);}
+.grid tr.row--total td{
+  position:sticky; bottom:0;
+  background:linear-gradient(180deg,var(--bg-3),var(--bg-2));
+  border-top:1px solid var(--line-strong); font-weight:700;
+}
+.grid tr.row--total .pn{font-family:var(--font-display); letter-spacing:.1em;}
+
+/* 计数格 —— 可下钻 */
+.cellcount{
+  display:inline-flex; align-items:center; justify-content:flex-end; gap:6px;
+  font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+  color:var(--accent); font-weight:600; cursor:pointer;
+}
+.cellcount::after{content:'›'; opacity:0; color:var(--accent-dim); transition:.14s;}
+.grid tbody tr:hover .cellcount::after{opacity:.9;}
+.cellcount--hot{text-shadow:0 0 14px var(--accent-glow);}
+
+/* 未找到 / 异常 行 */
+.grid tr.row--miss td{background:var(--ruby-soft);}
+.grid tr.row--miss .pn{color:var(--ruby);}
+.badge{
+  display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500;
+  padding:2px 9px; border-radius:20px; border:1px solid var(--line-strong); color:var(--text-dim);
+}
+.badge--miss{color:var(--ruby); border-color:var(--ruby); background:var(--ruby-soft);}
+.badge--ok{color:var(--good); border-color:var(--line-strong);}
+.mismatch{position:relative;}
+.mismatch::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--ruby);
+  box-shadow:0 0 10px var(--ruby); animation:pulse2 2.2s ease-in-out infinite;
+}
+@keyframes pulse2{0%,100%{opacity:.5;}50%{opacity:1;}}
+.grid td.isbad{color:var(--ruby); font-family:var(--font-mono);}
+
+/* 工具栏 / 导出 */
+.viewtools{display:flex; align-items:center; gap:10px; flex:none;}
+.viewtools .spacer{flex:1;}
+.exportbtn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer; border:none;
+  padding:9px 16px; border-radius:var(--radius-sm);
+  font-family:var(--font-cjk); font-size:12.5px; font-weight:700; letter-spacing:.03em;
+  color:#04120f; background:linear-gradient(180deg,var(--accent),var(--accent-dim));
+  box-shadow:0 8px 22px -12px var(--accent-glow);
+}
+:root[data-theme='light'] .exportbtn{color:#fff;}
+.exportbtn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;}
+
+/* 空态 */
+.empty{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; text-align:center; padding:40px;
+}
+.empty__plate{
+  width:66px; height:66px; border-radius:16px; display:grid; place-items:center;
+  border:1px solid var(--line-strong); background:var(--bg-1);
+  box-shadow:inset 0 0 30px -14px var(--accent-glow);
+}
+.empty__plate svg{width:28px;height:28px;stroke:var(--accent);fill:none;stroke-width:1.4;}
+.empty__t{
+  font-family:var(--font-cjk); font-weight:900; font-size:22px; letter-spacing:.04em;
+  background:linear-gradient(90deg,var(--text),var(--accent));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.empty__h{font-size:12.5px; color:var(--text-dim); line-height:1.9; max-width:340px;}
+.empty__h b{color:var(--accent); font-weight:700;}
+
+/* ---------------- 状态栏 ---------------- */
+.statusbar{
+  display:flex; align-items:center; gap:18px; padding:0 16px;
+  background:linear-gradient(180deg,var(--bg-1),var(--bg-0));
+  border-top:1px solid var(--line-strong);
+  font-family:var(--font-mono); font-size:11px; color:var(--text-faint);
+}
+.statusbar .grp{display:flex; align-items:center; gap:7px;}
+.statusbar .led{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);}
+.statusbar .spacer{flex:1;}
+.statusbar em{font-style:normal; color:var(--text-dim);}
+
+/* Toast */
+.toast{
+  position:fixed; left:50%; bottom:44px; transform:translate(-50%,20px);
+  display:flex; align-items:center; gap:10px;
+  padding:10px 18px; border-radius:30px; z-index:50;
+  background:var(--bg-3); border:1px solid var(--line-strong);
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.8), 0 0 0 1px var(--line);
+  font-size:12.5px; opacity:0; pointer-events:none; transition:.3s cubic-bezier(.4,0,.2,1);
+}
+.toast[data-show='true']{opacity:1; transform:translate(-50%,0);}
+.toast .led{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent-glow);}
+
+@media (max-width:1080px){ :root{--bay-w:250px;} }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="app">
+
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand__mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+      </span>
+      <div>
+        <div class="brand__name">JIG DATA FINDER</div>
+        <div class="brand__sub">MES · 检测数据定位台</div>
+      </div>
+    </div>
+
+    <div class="filechip">
+      <span class="dot"></span>
+      <span class="name">jig数据整理.xlsx</span>
+    </div>
+
+    <div class="topbar__spacer"></div>
+    <button class="btn" onclick="toast('已打开文件选择器（示意）')">浏览…</button>
+    <button class="btn btn--primary" onclick="toast('源数据已装载：205 行 · 9 列')">装载</button>
+    <button class="btn btn--icon" title="切换昼夜" onclick="toggleTheme()">
+      <svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18"/><circle cx="12" cy="12" r="4"/></svg>
+    </button>
+    <button class="btn btn--icon" title="设置" onclick="toast('设置面板（示意）')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>
+    </button>
+  </header>
+
+  <!-- ============ 工作区 ============ -->
+  <div class="workspace">
+
+    <!-- 侧栏 -->
+    <aside class="bay">
+      <div class="bay__head">
+        <span class="eyebrow">输入 JIG ID</span>
+        <span class="link" onclick="toast('已清空输入框')">清空</span>
+      </div>
+      <div class="bay__pad">
+        <textarea id="ids" spellcheck="false">CJJ349000910
+CJJ349000919
+CJJ356000708
+CJJ356000716
+CJEA5B001601</textarea>
+        <div class="bay__corners"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <button class="actuator" onclick="runQuery()">开始查询</button>
+      <div class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 查询 · 粘贴时自动挑出 JIG ID</div>
+    </aside>
+
+    <!-- 主舞台 -->
+    <main class="main">
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-view="detail">查询结果 <span class="tab__num">5</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-view="qpivot">结果透视 <span class="tab__num">3</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-view="pivot">全量透视 <span class="tab__num" data-live="13">13</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-view="review">数据审查 <span class="tab__num">205</span></button>
+        <div class="tabs__tools">
+          <div class="switch" data-on="false" onclick="this.dataset.on = this.dataset.on==='true'?'false':'true'">
+            <span class="switch__label">标出尺寸不匹配</span>
+            <span class="switch__track"></span>
+          </div>
+        </div>
+      </nav>
+
+      <div class="views">
+
+        <!-- ---------- 视图 1：查询结果 ---------- -->
+        <section class="view" data-active="true" data-id="detail">
+          <div class="viewtools">
+            <span class="eyebrow">命中记录</span>
+            <span class="spacer"></span>
+            <button class="exportbtn" onclick="toast('已导出查询结果.xlsx')">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>导出查询结果
+            </button>
+          </div>
+          <div class="gridwrap">
+            <div class="gridscroll">
+              <table class="grid">
+                <thead>
+                  <tr>
+                    <th>P/N</th><th>Lot ID</th><th>CST ID</th><th class="num">Slot No</th>
+                    <th>Jig ID</th><th>Jig 对应型号</th><th>Glass判定</th><th>工程名</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="pn">6073J-6555B</td><td class="mono muted">LOT-D8C-0042</td>
+                    <td class="mono">D8CCST500007</td><td class="num">14</td>
+                    <td class="mono">CJJ349000910</td><td class="mono">502N</td>
+                    <td><span class="badge badge--ok">OK</span></td><td>Jig Loading</td>
+                  </tr>
+                  <tr>
+                    <td class="pn">6073J-6555C</td><td class="mono muted">LOT-D8C-0042</td>
+                    <td class="mono">D8CCST500007</td><td class="num">15</td>
+                    <td class="mono">CJJ349000919</td><td class="mono">252</td>
+                    <td><span class="badge badge--ok">OK</span></td><td>PNP</td>
+                  </tr>
+                  <tr>
+                    <td class="pn">6072J-7748B</td><td class="mono muted">LOT-D8C-0051</td>
+                    <td class="mono">D8CCST500029</td><td class="num">03</td>
+                    <td class="mono">CJJ356000708</td><td class="mono">508</td>
+                    <td><span class="badge badge--ok">OK</span></td><td>Jig 洗净及检查</td>
+                  </tr>
+                  <tr>
+                    <td class="pn">6072J-7748D</td><td class="mono muted">LOT-D8C-0051</td>
+                    <td class="mono">D8CCST500029</td><td class="num">07</td>
+                    <td class="mono">CJJ356000716</td><td class="mono">256</td>
+                    <td><span class="badge badge--ok">OK</span></td><td>Jig 搬出待机</td>
+                  </tr>
+                  <tr class="row--miss">
+                    <td class="pn">—</td><td class="mono muted">—</td><td class="mono muted">—</td><td class="num muted">—</td>
+                    <td class="mono">CJEA5B001601</td><td class="muted">—</td>
+                    <td><span class="badge badge--miss">未找到</span></td><td class="muted">源数据中无此 JIG ID</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- 视图 2：结果透视 ---------- -->
+        <section class="view" data-id="qpivot">
+          <div class="viewtools">
+            <span class="eyebrow">命中透视</span><span class="spacer"></span>
+            <button class="exportbtn" onclick="toast('已导出结果透视.xlsx')">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>导出结果透视
+            </button>
+          </div>
+          <div class="gridwrap">
+            <div class="gridscroll">
+              <table class="grid">
+                <thead>
+                  <tr><th>P/N</th><th>CST ID</th><th class="num">PNP</th><th class="num">Jig Loading</th><th class="num">Jig 搬出待机</th><th class="num">总计</th></tr>
+                </thead>
+                <tbody>
+                  <tr class="row--subtotal">
+                    <td class="pn">6073J-6555B</td><td class="muted">--</td>
+                    <td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">2</td>
+                  </tr>
+                  <tr>
+                    <td></td><td class="mono">D8CCST500007</td>
+                    <td class="num"><span class="cellcount">1</span></td><td class="num"><span class="cellcount">1</span></td>
+                    <td class="num muted">0</td><td class="num">2</td>
+                  </tr>
+                  <tr class="row--subtotal">
+                    <td class="pn">6072J-7748B</td><td class="muted">--</td>
+                    <td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td>
+                  </tr>
+                  <tr>
+                    <td></td><td class="mono">D8CCST500029</td>
+                    <td class="num muted">0</td><td class="num muted">0</td>
+                    <td class="num"><span class="cellcount">1</span></td><td class="num">1</td>
+                  </tr>
+                  <tr class="row--total">
+                    <td class="pn">总计</td><td></td>
+                    <td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">3</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- 视图 3：全量透视 ---------- -->
+        <section class="view" data-id="pivot">
+          <div class="rail">
+            <div class="rail__cap">
+              <span class="t">工序轨道 · 产线流</span>
+              <span class="d">计数取自当前范围内的真实 JIG 数</span>
+            </div>
+            <div class="rail__flow" id="rail"></div>
+          </div>
+          <div class="viewtools">
+            <span class="eyebrow">显示范围</span>
+            <select class="btn" style="padding:6px 10px" onchange="toast('已切换显示范围')">
+              <option>全部数据</option><option>生产中</option><option>6073J-8348G</option>
+            </select>
+            <span class="spacer"></span>
+            <button class="exportbtn" onclick="toast('已导出全量透视.xlsx')">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>导出全量透视
+            </button>
+          </div>
+          <div class="gridwrap">
+            <div class="gridscroll">
+              <table class="grid">
+                <thead>
+                  <tr><th>P/N</th><th>CST ID</th><th class="num">PNP</th><th class="num">Jig Loading</th><th class="num">Jig 搬出待机</th><th class="num">总计</th></tr>
+                </thead>
+                <tbody>
+                  <tr class="row--subtotal"><td class="pn">6073J-8348G</td><td class="muted">--</td><td class="num">74</td><td class="num">116</td><td class="num">15</td><td class="num">205</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500002</td><td class="num"><span class="cellcount cellcount--hot">20</span></td><td class="num muted">0</td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono muted">CJE765-00A0-00</td><td class="num muted">0</td><td class="num"><span class="cellcount">20</span></td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500007</td><td class="num muted">0</td><td class="num"><span class="cellcount">20</span></td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500025</td><td class="num"><span class="cellcount">20</span></td><td class="num muted">0</td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500026</td><td class="num muted">0</td><td class="num"><span class="cellcount">20</span></td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500029</td><td class="num"><span class="cellcount">14</span></td><td class="num muted">0</td><td class="num muted">0</td><td class="num">14</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500033</td><td class="num muted">0</td><td class="num"><span class="cellcount">16</span></td><td class="num muted">0</td><td class="num">16</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500036</td><td class="num muted">0</td><td class="num"><span class="cellcount">20</span></td><td class="num muted">0</td><td class="num">20</td></tr>
+                  <tr><td></td><td class="mono">D8CCST500039</td><td class="num muted">0</td><td class="num muted">0</td><td class="num"><span class="cellcount">15</span></td><td class="num">15</td></tr>
+                  <tr class="row--total"><td class="pn">总计</td><td></td><td class="num">74</td><td class="num">116</td><td class="num">15</td><td class="num">205</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- 视图 4：数据审查 ---------- -->
+        <section class="view" data-id="review">
+          <div class="viewtools">
+            <span class="eyebrow">审查口径</span>
+            <select class="btn" style="padding:6px 10px" onchange="toast('已切换审查档位')">
+              <option>所有对象</option><option>尺寸不匹配</option>
+            </select>
+            <span class="eyebrow" style="margin-left:8px">P/N</span>
+            <select class="btn" style="padding:6px 10px" onchange="toast('已按 P/N 过滤')">
+              <option>全部</option><option>6073J-6555B</option><option>6072J-7748B</option>
+            </select>
+            <span class="spacer"></span>
+            <button class="exportbtn" onclick="toast('已导出数据审查.xlsx')">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>导出数据审查
+            </button>
+          </div>
+          <div class="gridwrap">
+            <div class="gridscroll">
+              <table class="grid">
+                <thead>
+                  <tr><th>P/N</th><th>Jig 对应型号</th><th>对应尺寸</th><th class="num">P/N 尺寸码</th><th>工程名</th><th>判定</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="pn">6073J-6555B</td><td class="mono">502N</td>
+                    <td class="mono muted">65/55_77/48_83/48</td><td class="num">6555</td>
+                    <td>PNP</td><td><span class="badge badge--ok">匹配</span></td>
+                  </tr>
+                  <tr class="mismatch">
+                    <td class="pn">6073J-7748B</td><td class="mono">502</td>
+                    <td class="mono muted">65/55</td><td class="num isbad">7748</td>
+                    <td>Jig Loading</td><td><span class="badge badge--miss">尺寸不匹配</span></td>
+                  </tr>
+                  <tr class="mismatch">
+                    <td class="pn">6072J-6555C</td><td class="mono">508</td>
+                    <td class="mono muted">77/48_83/48</td><td class="num isbad">6555</td>
+                    <td>Jig 洗净及检查</td><td><span class="badge badge--miss">尺寸不匹配</span></td>
+                  </tr>
+                  <tr>
+                    <td class="pn">6072J-7748D</td><td class="mono">256</td>
+                    <td class="mono muted">All Size</td><td class="num">7748</td>
+                    <td>Jig 搬出待机</td><td><span class="badge badge--ok">匹配</span></td>
+                  </tr>
+                  <tr>
+                    <td class="pn">6073J-6555B</td><td class="mono">252</td>
+                    <td class="mono muted">65/55_77/27_77/42_77/48_83/48</td><td class="num">6555</td>
+                    <td>PNP</td><td><span class="badge badge--ok">匹配</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ 状态栏 ============ -->
+  <footer class="statusbar">
+    <div class="grp"><span class="led"></span><span>已装载 <em>205</em> 行 · <em>9</em> 列</span></div>
+    <div class="spacer"></div>
+    <div class="grp">查询 <em>5</em> 条 · 命中 <em>4</em> · 未找到 <em>1</em></div>
+    <div class="grp">源 <em>205</em> 行 · 当前 <em data-live-rows>13</em> 行</div>
+  </footer>
+</div>
+
+<div class="toast" id="toast"><span class="led"></span><span id="toastText">源数据加载成功</span></div>
+
+<script>
+/* ---- 工序轨道数据（取自 README 的 11 道工序顺序） ---- */
+const STAGES = [
+  { name:'PNP',              n:74,  on:true, lead:true },
+  { name:'PNP 2nd',          n:0 },
+  { name:'Jig 洗净及检查',    n:0 },
+  { name:'Jig Loading',      n:116, on:true },
+  { name:'Jig Unloading',    n:0 },
+  { name:'Jig N判定 另外移载', n:0 },
+  { name:'Jig 分离',          n:0 },
+  { name:'目视Stage',         n:0 },
+  { name:'Jig 搬出待机',      n:15,  on:true },
+  { name:'Jig搬出',           n:0 },
+  { name:'Jig入库',           n:0 },
+];
+
+function renderRail(){
+  const peak = Math.max(...STAGES.map(s=>s.n)) || 1;
+  document.getElementById('rail').innerHTML = STAGES.map(s=>{
+    const state = s.lead ? 'lead' : (s.on ? 'on' : 'off');
+    const w = s.n ? (0.28 + 0.72*(s.n/peak))*100 : 0;
+    return `<div class="node" data-state="${state}">
+      <span class="node__pip"></span>
+      <div class="node__name">${s.name}</div>
+      <div class="node__count" data-count="${s.n}">0</div>
+      <div class="node__bar"><i style="width:${w}%"></i></div>
+    </div>`;
+  }).join('');
+}
+
+/* ---- 数字滚动 —— 让数据"活"一次 ---- */
+function countUp(el, to, dur=900){
+  const start = performance.now();
+  function step(t){
+    const p = Math.min(1,(t-start)/dur);
+    const e = 1-Math.pow(1-p,3);
+    el.textContent = Math.round(to*e);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function animateNumbers(){
+  document.querySelectorAll('[data-count]').forEach((el,i)=>{
+    setTimeout(()=>countUp(el, Number(el.dataset.count)), 60+i*45);
+  });
+}
+
+/* ---- 视图切换 ---- */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected','false'));
+    tab.setAttribute('aria-selected','true');
+    const id = tab.dataset.view;
+    document.querySelectorAll('.view').forEach(v=>{
+      v.dataset.active = String(v.dataset.id === id);
+    });
+    if(id==='pivot') animateNumbers();
+  });
+});
+
+/* ---- 主题 ---- */
+function toggleTheme(){
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+
+/* ---- Toast ---- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  t.dataset.show = 'true';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.dataset.show='false', 2200);
+}
+
+/* ---- 模拟查询 ---- */
+function runQuery(){
+  const raw = document.getElementById('ids').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  toast(`查询 ${raw.length} 条 · 命中 ${raw.length-1} · 未找到 1`);
+  document.querySelector('.tab[data-view="detail"]').click();
+}
+
+/* ---- 入场编排 ---- */
+renderRail();
+window.addEventListener('load', ()=>{
+  animateNumbers();
+  setTimeout(()=>toast('源数据加载成功'), 500);
+});
+</script>
+</body>
+</html>
