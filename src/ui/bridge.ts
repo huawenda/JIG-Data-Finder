@@ -200,8 +200,15 @@ export async function setWindowTheme(theme: 'light' | 'dark'): Promise<void> {
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
     await getCurrentWindow().setTheme(theme)
-  } catch {
-    /* 个别平台不支持设置标题栏主题, 静默降级 —— 内容区仍然正确 */
+  } catch (e) {
+    /*
+     * 个别平台不支持设置标题栏主题, 静默降级 —— 内容区仍然正确。
+     *
+     * 但日志要留一条: 这里最常见的失败原因是 capabilities 里漏了
+     * core:window:allow-set-theme —— 那会让标题栏一直不跟随主题, 而调用
+     * 本身"看起来"没报错, 极难排查 (曾因静默吞掉这次错误多花了一轮)。
+     */
+    console.warn('[theme] 设置窗口标题栏主题失败:', e)
   }
 }
 
