@@ -225,8 +225,14 @@ export default function Grid({
         ? table.rows.slice(0, MEASURE_ROWS)
         : table.rows
     return table.columns.map((col) => {
-      // 全部列同一种字体, 列宽只需按 UI 字体量 (见 isNumericColumn 上方说明)
-      const font = 'ui' as const
+      /*
+       * 数值列用等宽字体、其余列用 UI 字体。
+       *
+       * 测量的字体必须与实际渲染的字体一致, 否则列宽会偏 —— 「控制室」
+       * 皮肤给 .grid__td.num 上了 --font-mono, 这里就得用 'mono' 量它,
+       * 两边同源才保证末列不被裁。
+       */
+      const font = isNumericColumn(col) ? ('mono' as const) : ('ui' as const)
       /*
        * 表头必须用**表头自己的**字体量 (.grid__th 是 11px UI 字体),
        * 不能拿数据列的 12.5px 等宽字体代量 —— 那会高估表头宽度,

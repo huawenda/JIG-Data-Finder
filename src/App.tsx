@@ -22,8 +22,14 @@ import {
   REVIEW_SCOPES,
 } from './core/review'
 import type { ReviewKind, ReviewScope } from './core/review'
-import { applyTheme, readCachedTheme, watchSystemTheme } from './core/theme'
-import type { ThemeMode } from './core/theme'
+import {
+  applyTheme,
+  prefersDark,
+  readCachedTheme,
+  resolveTheme,
+  watchSystemTheme,
+} from './core/theme'
+import type { ResolvedTheme, ThemeMode } from './core/theme'
 import { readExcel, validateSource, writeExcel } from './core/excel'
 import type { RedMark } from './core/excel'
 import type { Row, Table } from './core/table'
@@ -34,7 +40,6 @@ import OverlayScrollbar from './ui/OverlayScrollbar'
 import StageRail from './ui/StageRail'
 import SettingsDialog from './ui/SettingsDialog'
 import type { SettingsDraft } from './ui/SettingsDialog'
-import SizeMappingDialog from './ui/SizeMappingDialog'
 import {
   IS_TAURI,
   basename,
@@ -53,6 +58,8 @@ import {
 import type { PickedFile } from './ui/bridge'
 
 import './styles/app.css'
+/* 「控制室」皮肤: 在 app.css 之后加载, 只改表现 (见文件头注释) */
+import './styles/skin.css'
 
 type TabId = 'detail' | 'queryPivot' | 'pivot' | 'review'
 type Status = 'idle' | 'ready' | 'busy' | 'error'
@@ -185,7 +192,6 @@ export default function App() {
 
   const [sizeValidation, setSizeValidation] = useState(cfg.sizeValidationEnabled)
   const [showSettings, setShowSettings] = useState(false)
-  const [showSizeMapping, setShowSizeMapping] = useState(false)
   /*
    * 当前生效的主题模式。
    *
@@ -199,6 +205,16 @@ export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     return readCachedTheme() ?? cfg.theme
   })
+  /*
+   * 当前实际生效的浅 / 深。
+   *
+   * 与 themeMode 刻意分开: 'system' 模式要落到"当前究竟是浅是深", 顶栏那个
+   * 快捷切换按钮得按这个来显示图标 (太阳 / 月亮)。初值复用与 themeMode 相同的
+   * 推导, 免得首帧图标闪一下。
+   */
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolveTheme(readCachedTheme() ?? cfg.theme, prefersDark()),
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -262,12 +278,32 @@ export default function App() {
    */
   useEffect(() => {
     const resolved = applyTheme(themeMode)
+    setResolvedTheme(resolved)
     void setWindowTheme(resolved)
     return watchSystemTheme(themeMode, (systemDark) => {
       const r = applyTheme(themeMode, systemDark)
+      setResolvedTheme(r)
       void setWindowTheme(r)
     })
   }, [themeMode])
+
+  /*
+   * 顶栏的浅 / 深快捷切换。
+   *
+   * 明确落到 light / dark 两个具体值上 (不是切到 'system'), 因为用户点这个
+   * 按钮就是要一个确定的结果。同时写回配置 —— 只改内存 state 的话, 下次启动
+   * 读到的是配置里的旧值, 会把这一次的切换盖回去, 用户会觉得"设了没用"。
+   */
+  const toggleTheme = useCallback(() => {
+    const next: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark'
+    setThemeMode(next)
+    const nextCfg = { ...cfg, theme: next }
+    setCfg(nextCfg)
+    applyConfig(nextCfg)
+    writeConfigFile(nextCfg).catch(() => {
+      /* 写盘失败不影响本次生效, 与设置面板的静默降级一致 */
+    })
+  }, [resolvedTheme, cfg])
 
   // ---- 提示条自动消失 ----
   useEffect(() => {
@@ -806,14 +842,31 @@ export default function App() {
     theme: c.theme,
   })
 
-  const saveSettings = (d: SettingsDraft) => {
-    const next = { ...cfg, ...d }
+  /**
+   * 保存「设置」窗口里的全部改动: 设置草稿 + 型号尺寸映射。
+   *
+   * 融合前这里只管设置, 型号尺寸映射另有一个 saveSizeMapping; 现在两处合一,
+   * 只写一次盘 —— 免得出现"设置存了、映射没存"的半成品配置。映射改动会影响
+   * 已加载的表 (「对应尺寸」列在建表阶段填好), 所以和原来一样要 rebuildTables。
+   */
+  const saveSettings = (
+    d: SettingsDraft,
+    mapping: Record<string, string>,
+    order: string[],
+  ) => {
+    const next = {
+      ...cfg,
+      ...d,
+      jigSizeMapping: mapping,
+      jigSizeMappingOrder: order,
+    }
     setCfg(next)
     setShowSettings(false)
     setSizeValidation(d.sizeValidationEnabled)
     applyConfig(next)
     setThemeMode(d.theme)
     document.documentElement.style.setProperty('--row-h', `${d.tableDefaultRowHeight}px`)
+    rebuildTables(next)
 
     // 写回磁盘, 让设置跨启动保留
     writeConfigFile(next)
@@ -823,7 +876,7 @@ export default function App() {
       )
   }
 
-  // ---- 型号尺寸匹配 ----
+  // ---- 重算已加载的表 ----
   /**
    * 配置改动后重算所有已加载的表。
    *
@@ -855,22 +908,6 @@ export default function App() {
     },
     [source, input],
   )
-
-  const saveSizeMapping = (mapping: Record<string, string>, order: string[]) => {
-    // 只 patch 自己的两个字段, 不整体覆写配置 —— 那样会把磁盘上其它
-    // 字段的当前值一起盖掉。
-    const next = { ...cfg, jigSizeMapping: mapping, jigSizeMappingOrder: order }
-    setCfg(next)
-    setShowSizeMapping(false)
-    applyConfig(next)
-    rebuildTables(next)
-
-    writeConfigFile(next)
-      .then(() =>
-        setToast({ kind: 'ok', text: `已保存 ${Object.keys(mapping).length} 条型号尺寸规则` }),
-      )
-      .catch((e) => setToast({ kind: 'error', text: `保存失败:${errText(e)}` }))
-  }
 
   /**
    * 审查页筛空时的文案: 三种"空"要分开说。
@@ -925,13 +962,27 @@ export default function App() {
         <button className="btn" type="button" onClick={() => setShowSettings(true)}>
           设置
         </button>
+        {/*
+          浅 / 深快捷切换: 图标显示"点下去会变成什么" ——
+          当前深色就显示太阳(点了变浅), 当前浅色就显示月亮(点了变深)。
+        */}
         <button
-          className="btn"
+          className="btn btn--icon"
           type="button"
-          title="编辑「Jig 对应型号」到「对应尺寸」的映射规则"
-          onClick={() => setShowSizeMapping(true)}
+          title={resolvedTheme === 'dark' ? '切换到浅色' : '切换到深色'}
+          aria-label={resolvedTheme === 'dark' ? '切换到浅色' : '切换到深色'}
+          onClick={toggleTheme}
         >
-          型号尺寸匹配
+          {resolvedTheme === 'dark' ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
+            </svg>
+          )}
         </button>
         <input
           ref={fileInputRef}
@@ -1285,14 +1336,6 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           pickDirectory={pickDirectory}
           onThemePreview={setThemeMode}
-        />
-      )}
-
-      {showSizeMapping && (
-        <SizeMappingDialog
-          config={cfg}
-          onSave={saveSizeMapping}
-          onClose={() => setShowSizeMapping(false)}
         />
       )}
     </div>

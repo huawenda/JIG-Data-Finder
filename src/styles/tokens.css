@@ -1,63 +1,75 @@
 /*
  * JIG Data Finder — 设计令牌
  *
- * 主题:「设备状态板」。参照车间工位旁的排产看板, 而非通用后台模板。
- * 核心约束:
- *   1. 表格里只允许出现一种彩色 —— --signal (尺寸不匹配)。
- *      小计/总计靠字重、底纹、线条区分, 让异常自己跳出来。
- *   2. 数字必须等宽 + 表格数字, 纵向可扫读比较。
- *   3. 工序是有序的, 画成一条轨道。
+ * 主题:「控制室」。把车间看板升级成一台发光的检测仪器 ——
+ * 深色优先、单一磷光强调色、结构与信号各司其职。
  *
- * 字体只用系统内置 (Tauri 离线运行, 不能挂网络字体):
- *   Segoe UI Variable Display — Win11 自带光学字号版本, 比普通 Segoe UI 更有质感
- *   Cascadia Mono          — Win11 自带, 比 Consolas 更有仪器气质
+ * 核心约定:
+ *   1. 同时只存在一种"主张力色" —— --accent (磷光青绿), 只在"活的东西"
+ *      上出现: 选中、焦点、计数、在制工序。静态结构一律不上色。
+ *   2. --signal (红宝石) 专供尺寸不匹配/未找到, --lamp (琥珀) 专供
+ *      载入中/生产中。两个信号色只在"有状态"的地方点亮, 不做装饰。
+ *   3. 数字等宽 + tabular-nums, 纵向可扫读比较。
+ *   4. 工序是有序的, 画成一条发光的产线流 (见 skin.css)。
+ *
+ * 字体:
+ *   --font-display 只在界面外壳(标题/标签/仪表读数)使用, 不参与表格列宽测量,
+ *                  因此可以安全地引入 Bahnschrift 这类更有性格的字体。
+ *   --font-ui / --font-mono 必须保持系统字体 —— Grid.tsx 用 canvas 按这两个
+ *                  变量的真实字体串测量列宽, 一旦换成异步加载的网络字体,
+ *                  首帧测出的宽度与实际渲染会不一致, 末列会被裁字。
+ *                  这是本文件最需要守住的一条边界。
+ *
+ * 本文件是颜色的唯一事实来源; 其它样式只许引用语义令牌, 不写字面色值。
  */
 
 :root {
   /*
    * 主题由 <html data-theme="light|dark"> 决定, 不再用 prefers-color-scheme。
-   *
-   * 背景: tauri.conf.json 里 theme:"Light" 把 WebView2 的
-   * prefers-color-scheme 钉死成 light, 所以基于媒体查询的深色块
-   * 在真实窗口里永远不生效。现在改由 src/core/theme.ts 写属性,
-   * 'system' 模式在 JS 里解析成 light/dark 再落属性 —— CSS 只认结果,
-   * 深色令牌只需写一遍。
-   *
-   * 未设属性时的兜底就是浅色, 与配置默认值一致。
+   * 未设属性时的兜底就是浅色, 与配置默认值一致 (config.theme 默认 'light',
+   * 且有单测断言, 不在此改动)。
    */
   color-scheme: light;
 
   /* ---- 墨色 (冷调近黑, 非纯黑) ---- */
-  --ink: #16191d;
-  --ink-2: #5b6472;
-  --ink-3: #8a93a0;
+  --ink: #0b1415;
+  --ink-2: #4b5b5a;
+  --ink-3: #84918f;
 
   /* ---- 界面结构 ---- */
-  --rule: #dde2e8;
-  --rule-strong: #c3cad4;
-  --board: #edeff2;
-  --surface: #ffffff;
-  --band: #f0f2f5;
+  --rule: rgba(8, 24, 24, 0.1);
+  --rule-strong: rgba(8, 24, 24, 0.22);
+  --board: #e6ebec; /* 页面底: 冷纸灰, 不是纯白 */
+  --surface: #ffffff; /* 面板: 抬升面 */
+  --band: #eef3f3; /* 次级面: 表头/小计/脚注 */
 
-  /* ---- 强调色: 深孔雀石绿, 刻意避开 SaaS 蓝 ---- */
-  --accent: #0d5c63;
-  --accent-hover: #0a4a50;
-  --accent-soft: #e3f0f0;
-  --accent-ring: rgba(13, 92, 99, 0.32);
+  /* ---- 主张力: 检测灯 · 磷光青绿 (白天压深, 保证白底对比) ---- */
+  --accent: #0a8f77;
+  --accent-hover: #0a7a66;
+  --accent-soft: rgba(10, 143, 119, 0.1);
+  --accent-ring: rgba(10, 143, 119, 0.28);
+  --accent-glow: rgba(10, 143, 119, 0.18); /* 只在"活"元素上铺的辉光 */
 
-  /* 强调色底上的文字。浅色模式下深绿底配白字足够, 深色模式把强调色
-     提亮到 #3fa8a4 之后, 白字对比度只剩 2.2:1 —— 改用深墨色才读得清。 */
+  /* 强调色底上的文字 */
   --on-accent: #ffffff;
 
   /* ---- 设备信号色 ---- */
-  --signal: #c22a1f; /* 尺寸不匹配 — 信号灯红 */
-  --signal-soft: #fdeceb;
-  --lamp: #b45309; /* 载入中 — 琥珀, 设备运行灯 */
-  --ok: #1e7a4d;
+  --signal: #cf3a2c; /* 尺寸不匹配 / 未找到 — 信号灯红 */
+  --signal-soft: rgba(207, 58, 44, 0.1);
+  --lamp: #b26a08; /* 载入中 / 生产中 — 设备运行灯 */
+  --ok: #0f8f66;
+
+  /* 遮罩 (对话框背板), 随主题翻转 */
+  --scrim: rgba(12, 24, 24, 0.3);
 
   /* ---- 字体 ---- */
+  /* 外壳专用: 工业技术感, 不参与列宽测量 */
+  --font-display: 'Bahnschrift', 'Segoe UI Variable Display',
+    'Microsoft YaHei UI', system-ui, sans-serif;
+  /* 界面正文: 系统栈, 离线且可被 canvas 精确测量 */
   --font-ui: 'Segoe UI Variable Display', 'Microsoft YaHei UI', 'DengXian',
     system-ui, sans-serif;
+  /* 数据/编码: 等宽, 仪器读数感 */
   --font-mono: 'Cascadia Mono', Consolas, 'Microsoft YaHei UI', ui-monospace,
     monospace;
 
@@ -68,34 +80,42 @@
   --row-h: 30px;
   --side-w: 260px;
 
-  --radius-sm: 3px;
-  --radius: 5px;
+  --radius-sm: 4px;
+  --radius: 7px;
 }
 
 /*
- * 深色: 仅翻转表面与墨色, 保留强调色与信号色的辨识度。
+ * 深色: 方案的主场 —— 暗场、发光。
  *
- * 注意这里补齐了浅色块里所有会随背景翻转的令牌 —— 尤其是 --accent-ring,
- * 原先漏了它, 深色下焦点环仍用浅色的深绿 rgba, 贴在暗底上几乎看不见。
+ * 强调色在暗底上提亮到 #2fe3c0, 白字对比不足, 所以 --on-accent 用深墨。
+ * 所有随背景翻转的令牌都在这里补齐 (含 --accent-glow / --scrim),
+ * 漏掉哪个, 深色下就会残留浅色值。
  */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --ink: #e6e9ee;
-  --ink-2: #a3abb8;
-  --ink-3: #6f7889;
-  --rule: #2b3038;
-  --rule-strong: #3b424d;
-  --board: #14171b;
-  --surface: #1b1f25;
-  --band: #232830;
-  --accent: #3fa8a4;
-  --accent-hover: #55bfbb;
-  --accent-soft: #14312f;
-  --accent-ring: rgba(63, 168, 164, 0.42);
-  --on-accent: #0c1a1a;
-  --signal: #ef5c4d;
-  --signal-soft: #33191a;
-  --lamp: #d97706;
-  --ok: #34a96b;
+  --ink: #e8f3f0;
+  --ink-2: #8fa3a0;
+  --ink-3: #5a6a68;
+
+  --rule: rgba(255, 255, 255, 0.075);
+  --rule-strong: rgba(255, 255, 255, 0.15);
+  --board: #070a0b;
+  --surface: #0f1618;
+  --band: #141d20;
+
+  --accent: #2fe3c0;
+  --accent-hover: #57f0d4;
+  --accent-soft: rgba(47, 227, 192, 0.12);
+  --accent-ring: rgba(47, 227, 192, 0.35);
+  --accent-glow: rgba(47, 227, 192, 0.28);
+
+  --on-accent: #04120f;
+
+  --signal: #ff5d4f;
+  --signal-soft: rgba(255, 93, 79, 0.13);
+  --lamp: #f4a63c;
+  --ok: #33d69f;
+
+  --scrim: rgba(2, 5, 6, 0.62);
 }

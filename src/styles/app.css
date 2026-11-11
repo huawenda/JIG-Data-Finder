@@ -1275,6 +1275,135 @@ textarea {
   border-top: 1px solid var(--rule);
 }
 
+/* ============ 「偏好设置」窗口: 左导航 + 右内容 ============ */
+
+/*
+ * 型号尺寸匹配融合进设置后, 对话框从"一根长表单"升级成两栏偏好窗口:
+ * 左导航固定、右面板独立滚动。
+ *
+ * 宽度取 880 —— 右面板要放得下那张映射表 (16 行, 列宽 20/118/1fr/52/52),
+ * 旧的 660 会把「对应尺寸」列挤到折行, 反而更难核对。
+ * 高度有界 (min(640px, 100%)) 是为了让两栏各自滚动, 而不是整页一起滚。
+ */
+.dialog--prefs {
+  width: min(880px, 100%);
+  height: min(640px, 100%);
+  grid-template-rows: auto 1fr auto;
+}
+
+.dialog__head {
+  padding: 16px 22px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dialog--prefs .dialog__title {
+  margin: 0;
+}
+
+.dialog--prefs .dialog__note {
+  margin: 3px 0 0;
+}
+
+/*
+ * 左右两栏。行高必须显式写 minmax(0, 1fr): 不写的话这一行按内容高度算,
+ * 右面板就不会被拉伸到容器高度, 后面靠它当滚动轴的布局会整体塌掉
+ * (表体会被压成 0 高、内容整块消失)。
+ */
+.dialog__main {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+/* 左导航: 固定宽, 自身可滚 (分类变多时不至于被挤没) */
+.prefs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--rule-strong);
+}
+
+.prefs-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 120ms, color 120ms;
+}
+
+.prefs-nav__item:hover {
+  background: var(--band);
+  color: var(--ink);
+}
+
+/* 选中态: 左侧竖规 + 淡底 —— 沿用工序轨道节点的语言 */
+.prefs-nav__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 140ms;
+}
+
+.prefs-nav__item[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.prefs-nav__item[aria-selected='true']::before {
+  opacity: 1;
+}
+
+.prefs-nav__badge {
+  margin-left: auto;
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 20px;
+  border: 1px solid var(--rule);
+  background: var(--band);
+  color: var(--ink-3);
+}
+
+.prefs-nav__badge[data-bad='true'] {
+  color: var(--signal);
+  border-color: var(--signal);
+  background: transparent;
+}
+
+/*
+ * 右面板: 整个窗口**唯一**的滚动轴。
+ * 映射表也跟着它一起滚, 表头靠 sticky 吸顶 —— 不再有"滚动区套滚动区"。
+ */
+.prefs-pane {
+  padding: 20px 22px;
+  min-height: 0;
+  overflow: auto;
+}
+
 /* ============ 型号尺寸匹配面板 ============ */
 
 /*
@@ -1293,9 +1422,11 @@ textarea {
  * 标题直接接表格, 标题自身的 4px 下边距会让表头顶到标题上。
  */
 .map {
-  margin-top: 12px;
+  /* 表格是面板里的第一个元素 (说明行已去掉), 不需要上边距 */
+  margin-top: 0;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
+  /* 圆角要裁掉行背景, 所以这里保留 hidden —— 表头不再靠 sticky, 见下方说明 */
   overflow: hidden;
 }
 
@@ -1325,8 +1456,70 @@ textarea {
   position: relative;
 }
 
+/*
+ * 表体: 兜底做法 —— 按视口高度封顶并自己滚。
+ * 只在不支持 :has() 的环境才会用到 (见下方映射面板的覆盖)。
+ */
 .map__body {
   max-height: min(46vh, 420px);
+  overflow: auto;
+}
+
+/*
+ * 映射面板: 让表格撑满面板高度, 由**表体**当唯一的滚动轴。
+ *
+ * 高度链全部显式给出, 不靠内容推算:
+ *   .prefs-pane  行 = minmax(0,1fr) + auto   (表格 / 底部工具栏)
+ *   .map         列 = auto + minmax(0,1fr)   (表头 / 表体)
+ *   .map__body   绝对定位铺满父盒
+ * 于是表体拿到的是"面板真实剩下的高度", 而不是自身内容高度。
+ *
+ * 为什么不能给表体 max-height: 46vh —— 窗口越高表体越高, 而对话框封顶
+ * 640px, 表体一旦高过面板就同时冒出两根滚动条 (面板 + 表体)。现在面板
+ * 锁死 (overflow: hidden), 只留表体一根。
+ *
+ * 无头浏览器实测 (视口 1376x908):
+ *   改前 pane client=507 / scroll=528 (滚 +21, 双滚动)
+ *   改后 pane client=507 / scroll=507 (不滚, 单滚动轴)
+ */
+.prefs-pane:has(.map) {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  overflow: hidden;
+}
+
+/*
+ * 映射分类的外层 <section> (SettingsDialog 里的 tabpanel 包装) 也必须参与
+ * 高度链 —— 它是 .prefs-pane 与 .map 之间的一层。
+ *
+ * 少了这一条, .map 就只是普通 block 里的普通 block, 拿到的是内容高度;
+ * 而 .map__body 是绝对定位、不贡献内容高度, 于是 .map 只有表头那 28px 高,
+ * 表体被压成 0 —— 表现就是"表头在、下面全空"。
+ * (无头浏览器实测: 缺这条时 map box=30 / wrap=0 / body=0。)
+ */
+.prefs-pane:has(.map) > section {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  overflow: hidden;
+}
+
+.prefs-pane:has(.map) .map {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.prefs-pane:has(.map) .map__body-wrap {
+  min-height: 0;
+  position: relative;
+}
+
+.prefs-pane:has(.map) .map__body {
+  position: absolute;
+  inset: 0;
+  max-height: none;
   overflow: auto;
 }
 

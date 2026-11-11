@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppConfig } from '../core/config'
 import type { Table } from '../core/table'
 import OverlayScrollbar from './OverlayScrollbar'
@@ -9,11 +9,14 @@ export interface StageRailProps {
 }
 
 /**
- * 工序轨道。
+ * 工序轨道 (「控制室」皮肤下是一条发光的产线流)。
  *
  * engineeringConfig 里那 11 道工序 (PNP=10 → Jig入库=100) 本来就是
  * 产线流水顺序, 这是这个领域独有的信息, 所以画成一条轨道而不是
  * 普通表格列: 一眼能看出"今天还没有 JIG 走到搬出"这类现场状态。
+ *
+ * 形态由 skin.css 的 .rail-stages / .stage 承担 (连接线、流动光带、
+ * 节点圆点、呼吸脉冲); 本组件只负责数据与结构。
  *
  * 计数取自透视表的"总计"行 —— 那是当前查询范围内的真实数量。
  */
@@ -67,7 +70,9 @@ export default function StageRail({ table, config }: StageRailProps) {
                 aria-hidden="true"
               />
               <div className="stage__name">{name}</div>
-              <div className="stage__count">{n}</div>
+              <div className="stage__count">
+                <AnimatedCount value={n} />
+              </div>
             </div>
           )
         })}
@@ -75,6 +80,64 @@ export default function StageRail({ table, config }: StageRailProps) {
       <OverlayScrollbar targetRef={scrollRef} axis="horizontal" />
     </div>
   )
+}
+
+/**
+ * 数字入场滚动。
+ *
+ * 工序轨道上的计数从 0 滚到目标值, 让"数据刚刚刷新"这件事被感知到。
+ * 尊重 prefers-reduced-motion: 系统开了"减少动态效果"就直接跳到终值,
+ * 不引入多余的动画。
+ *
+ * 独立组件而非在父级放 Hook —— 这样它自己的 state 变化只重渲染这一个
+ * 数字节点, 也避开父组件提前 return 带来的 Hook 顺序问题。
+ */
+function AnimatedCount({ value }: { value: number }) {
+  const [shown, setShown] = useState(0)
+  /*
+   * 当前"已经显示到"的值, 用 ref 记而不是只看 value。
+   *
+   * 关键: React 18 StrictMode 在开发模式下会把挂载时的 effect 跑两遍
+   * (setup → cleanup → setup)。若用"上一次的目标值"判断要不要起动画,
+   * 第二遍 setup 会看到目标值没变而直接 return —— 第一遍被 cleanup 取消的
+   * 动画再也不会重来, 数字永远停在 0。表现就是"从别的标签页切回全量透视时,
+   * 工序轨道全部清零"(在那两个透视页之间切换不会卸载组件, 所以不触发)。
+   *
+   * 改成按"已显示到哪儿"判断, 第二遍 setup 会从当前进度重新起动画, 结果正确。
+   */
+  const shownRef = useRef(0)
+
+  useEffect(() => {
+    const from = shownRef.current
+    if (from === value) return
+
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (reduceMotion || typeof requestAnimationFrame !== 'function') {
+      shownRef.current = value
+      setShown(value)
+      return
+    }
+
+    let raf = 0
+    const start = performance.now()
+    const dur = 700
+    const step = (t: number) => {
+      const p = Math.min(1, (t - start) / dur)
+      const eased = 1 - Math.pow(1 - p, 3)
+      const v = Math.round(from + (value - from) * eased)
+      shownRef.current = v
+      setShown(v)
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value])
+
+  return <>{shown}</>
 }
 
 /** 按 engineeringConfig.order 取工序顺序 */

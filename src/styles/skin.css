@@ -1,0 +1,758 @@
+/*
+ * 「控制室」皮肤 —— 氛围层与形态改造
+ *
+ * 在 app.css 之后加载 (见 App.tsx 的 import 顺序), 因此同名规则由本文件
+ * 覆盖。本文件**只改表现**: 不新增类名依赖、不动任何结构语义、不碰
+ * src/core/*.ts。app.css 那 1566 行的布局与虚拟滚动机制原样保留。
+ *
+ * 分四层:
+ *   0. 氛围   网格底 + 双辉光 + 胶片颗粒
+ *   1. 外壳   顶栏 / 侧栏 / 标签栏 / 状态轨
+ *   2. 记忆点 工序轨道 → 产线流
+ *   3. 数据   仪器读数表 + 异常信号
+ *   4. 浮层   工具条控件 / 对话框 / 提示条
+ */
+
+/* ============================================================
+   0. 氛围: 网格底 + 双辉光 + 胶片颗粒
+   ============================================================ */
+
+/*
+ * 页面底色由 body 承担 (app.css 里 body 用 --board 铺底)。
+ * 这里换成"网格 + 两处辉光 + 底色"的多层背景, 让平面的纸变成有纵深的屏。
+ * html 也要同步, 否则首帧露出的是 html 的纯色 canvas, 深色下会闪。
+ */
+html {
+  background: var(--board);
+}
+
+body {
+  background:
+    radial-gradient(1100px 560px at 82% -14%, var(--accent-glow), transparent 62%),
+    radial-gradient(900px 520px at -8% 110%, var(--accent-glow), transparent 60%),
+    linear-gradient(var(--rule) 1px, transparent 1px) 0 0 / 100% 28px,
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px) 0 0 / 28px 100%,
+    var(--board);
+  background-attachment: fixed;
+}
+
+/*
+ * 胶片颗粒。
+ *
+ * 深色大面积纯色会有"塑料感", 叠一层极淡的噪点就能让它像真实的面板。
+ * 用 body::after 而非额外 DOM 节点 —— 不新增结构, 也不影响布局;
+ * pointer-events:none 保证它绝不拦截任何交互。
+ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+/* 选中态用强调色, 让"这是我选中的"这件事有统一语言 */
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ============================================================
+   1. 外壳: 顶栏 / 侧栏 / 标签栏 / 状态轨
+   ============================================================ */
+
+/* ---- 顶栏: 控制台条 ---- */
+
+.head {
+  gap: 12px;
+  background: linear-gradient(180deg, var(--band), var(--surface));
+  border-bottom: 1px solid var(--rule-strong);
+  position: relative;
+}
+
+/* 底部一条贯穿的青绿渐隐光线 —— "仪器通电"的暗示 */
+.head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.head__mark {
+  align-items: center;
+  gap: 10px;
+  border-right-color: var(--rule-strong);
+}
+
+/* 品牌标记: 一颗自发光的小方块, 取代原来纯文字的标头 */
+.head__mark::before {
+  content: '';
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 5px;
+  background: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 1px var(--rule-strong),
+    0 0 14px -2px var(--accent-glow);
+}
+
+.head__name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+}
+
+/* 文件名胶囊: 暗槽 + 内辉光, 像仪器的"当前工件"读数 */
+.head__path {
+  background: var(--board);
+  border: 1px solid var(--rule-strong);
+  box-shadow: inset 0 0 24px -14px var(--accent-glow);
+}
+
+.head__path[data-empty='true'] {
+  box-shadow: none;
+}
+
+/* ---- 按钮: 主操作发光实心, 其余安静 ---- */
+
+.btn {
+  border-radius: var(--radius-sm);
+  font-weight: 550;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--band);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/*
+ * 顶栏的图标按钮 (浅 / 深快捷切换)。
+ *
+ * 收成正方形、去掉左右内边距, 只放一个描边图标; 悬停才转成强调色 ——
+ * 与旁边那些带文字的按钮区分开, 不抢"加载/设置"的注意力。
+ */
+.btn--icon {
+  width: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-2);
+}
+
+.btn--icon:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.btn--icon:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn--icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn--icon:hover:not(:disabled) svg {
+  transform: rotate(18deg);
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px var(--rule-strong),
+    0 8px 22px -14px var(--accent-glow);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  border-color: transparent;
+  color: var(--on-accent);
+  filter: brightness(1.06);
+}
+
+/* ---- 侧栏: 输入舱 ---- */
+
+.side {
+  background: linear-gradient(180deg, var(--surface), var(--board));
+  border-right: 1px solid var(--rule-strong);
+}
+
+.side__label {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.side__input {
+  background: var(--board);
+  border: 1px solid var(--rule-strong);
+  box-shadow: inset 0 0 44px -24px var(--accent-glow);
+}
+
+.side__input:focus {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent-ring),
+    inset 0 0 44px -22px var(--accent-glow);
+}
+
+/* 输入区扫描线: 极淡的横向纹理, 只作氛围, 不盖字 */
+.side__field::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: var(--radius);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    var(--accent-soft) 3px 4px
+  );
+}
+
+/* 开始查询 —— 致动按钮: 大写 + 拉字距, 像设备上的启动键 */
+.side .btn--primary.btn--tall {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: var(--radius);
+  box-shadow:
+    0 0 0 1px var(--rule-strong),
+    0 12px 28px -14px var(--accent-glow);
+}
+
+.side__hint {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+/* ---- 标签栏: 通道选择器 ---- */
+
+.tabs {
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.tab {
+  padding: 9px 16px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.tab:hover {
+  color: var(--ink-2);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* 选中态: 一道自发光的光条, 而不是平涂的 2px 线 */
+.tab[aria-selected='true']::after {
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.tab__badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  background: var(--band);
+  border: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+
+.tab[aria-selected='true'] .tab__badge {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- 状态轨: 仪表读数 ---- */
+
+.rail {
+  background: linear-gradient(180deg, var(--surface), var(--board));
+  border-top: 1px solid var(--rule-strong);
+}
+
+/* 状态灯点亮点: 加一圈与自身同色的辉光, 像真在发光 */
+.rail__dot[data-state='ready'] {
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+}
+
+.rail__dot[data-state='busy'] {
+  background: var(--lamp);
+  box-shadow: 0 0 8px var(--lamp);
+}
+
+.rail__dot[data-state='error'] {
+  background: var(--signal);
+  box-shadow: 0 0 8px var(--signal);
+}
+
+.rail__meta {
+  color: var(--ink-3);
+}
+
+.rail__sign {
+  border-left-color: var(--rule-strong);
+}
+
+/* ============================================================
+   2. 记忆点: 工序轨道 → 产线流
+   ============================================================ */
+
+/*
+ * 结构完全沿用 StageRail.tsx 的 DOM (.rail-stages > .stage > bar/name/count),
+ * 只用 CSS 把它从"一排带色条的卡片"改造成一条有节点的发光流线:
+ *   .rail-stages::before —— 贯穿的连接线
+ *   .rail-stages::after  —— 缓缓掠过的流动光带
+ *   .stage::before       —— 每个工序的节点圆点 (有数发亮, 主力呼吸)
+ *   .stage__bar          —— 移到节点下方, 长度表达相对量级
+ */
+.rail-stages {
+  position: relative;
+  gap: 0;
+  padding: 26px 12px 12px;
+  background: linear-gradient(180deg, var(--surface), var(--board));
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+/* 贯穿的连接线 */
+.rail-stages::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 13px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--rule-strong) 6%,
+    var(--rule-strong) 94%,
+    transparent
+  );
+}
+
+/* 流动光带: 让"产线在动"这件事被看见 */
+.rail-stages::after {
+  content: '';
+  position: absolute;
+  top: 11.5px;
+  left: -90px;
+  width: 90px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  filter: blur(1px);
+  opacity: 0.7;
+  animation: jig-flow 5.5s linear infinite;
+}
+
+@keyframes jig-flow {
+  from {
+    left: -90px;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.stage {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 8px;
+  border-left: 0;
+}
+
+/* 节点圆点 */
+.stage::before {
+  content: '';
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--band);
+  border: 1px solid var(--rule-strong);
+  z-index: 2;
+}
+
+/* 有治具在制的工序: 节点转强调色并发光 */
+.stage[data-active='true']::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    0 0 14px var(--accent-glow);
+}
+
+/* 主力工序: 节点呼吸 */
+.stage[data-lead='true']::before {
+  animation: jig-pulse 1.9s ease-in-out infinite;
+}
+
+@keyframes jig-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px var(--accent-soft),
+      0 0 14px var(--accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 7px transparent,
+      0 0 22px var(--accent-glow);
+  }
+}
+
+.stage__name {
+  order: 1;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.stage[data-active='true'] .stage__name,
+.stage[data-lead='true'] .stage__name {
+  color: var(--ink-2);
+}
+
+.stage__count {
+  order: 2;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink-3);
+}
+
+.stage[data-active='true'] .stage__count {
+  color: var(--ink);
+}
+
+.stage[data-lead='true'] .stage__count {
+  color: var(--accent);
+  text-shadow: 0 0 16px var(--accent-glow);
+}
+
+/* 量条移到节点下方: 长度表达相对量级 (由内联 opacity 表达档位) */
+.stage__bar {
+  order: 3;
+  width: 100%;
+  height: 3px;
+  margin: 7px 0 0;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* 0 值工序整体沉入暗处, 但仍可读 —— 一眼看出"今天还没走到这里" */
+.stage[data-empty='true'] {
+  opacity: 1;
+}
+
+.stage[data-empty='true'] .stage__name,
+.stage[data-empty='true'] .stage__count {
+  color: var(--ink-3);
+  opacity: 0.55;
+}
+
+/* ============================================================
+   3. 数据: 仪器读数表 + 异常信号
+   ============================================================ */
+
+.grid-wrap {
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+/* 表头: 顶面微渐变, 像仪表盘上的刻字面板 */
+.grid__head {
+  background: linear-gradient(180deg, var(--band), var(--surface));
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.grid__th {
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+/* 行号列: 弱化的侧规 */
+.grid__td--idx {
+  background: var(--band);
+  color: var(--ink-3);
+  border-right: 1px solid var(--rule);
+}
+
+/* 悬停: 极淡的一层"扫过" */
+.grid__tr:hover .grid__td {
+  background: var(--accent-soft);
+}
+
+/* 数值列走等宽字体 (与 Grid.tsx 的列宽测量保持一致), 仪器读数感 */
+.grid__td.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 小计行: P/N 用强调色, 分组一目了然 ---- */
+.grid__tr.is-sub .grid__td {
+  background: var(--band);
+  border-bottom-color: var(--rule-strong);
+}
+
+.grid__tr.is-sub .grid__td--idx {
+  border-left: 2px solid var(--accent);
+}
+
+.grid__tr.is-sub .grid__td:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.grid__tr.is-sub:hover .grid__td {
+  background: var(--band);
+}
+
+/* ---- 总计行 (冻结): 更重的底 + 顶部封口线 ---- */
+.grid__tr.is-total .grid__td {
+  background: linear-gradient(180deg, var(--band), var(--surface));
+  font-weight: 700;
+}
+
+.grid__tr.is-total:hover .grid__td {
+  background: linear-gradient(180deg, var(--band), var(--surface));
+}
+
+.grid__tr.is-total .grid__td:first-child {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+}
+
+/*
+ * 冻结总计行的框线刻意不在这里加。
+ *
+ * 它是个 grid 容器, 若给"行"加 border, 线会横跨到列模板末尾的弹性填充轨道上,
+ * 而数据行的底边是画在单元格上的 —— 填充区没有单元格, 于是右端会露出一段
+ * 多出来的线。总计行的封口线一律交回 app.css 的 .grid__foot--end 机制处理
+ * (那是按单元格画的, 范围与数据行一致)。
+ */
+
+/* ---- 汇总列 ---- */
+.grid__td--total {
+  border-left: 1px solid var(--rule-strong);
+  font-weight: 600;
+}
+
+/* ---- 计数格: 可下钻 ----
+ *
+ * 静止态一律用常规文字色, 强调色只留给**小计行与总计行** —— 让"哪几行是汇总"
+ * 一眼可辨, 而不是整张表铺满青绿 (明细行占绝大多数, 全都上色等于没有重点)。
+ * 可点击的提示交给悬停: 那一下的描边 + 淡底已经足够说明"这里能进去"。
+ * 只影响透视表, 因为只有透视表才给 Grid 传 onCellClick。
+ */
+.grid__td--drill {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.grid__tr.is-sub .grid__td--drill,
+.grid__tr.is-total .grid__td--drill {
+  color: var(--accent);
+}
+
+.grid__td--drill:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.grid__tr.is-sub .grid__td--drill:hover,
+.grid__tr.is-total .grid__td--drill:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- 唯一允许的彩色: 尺寸不匹配 ----
+ *
+ * 不动画。透视/审查表可能有几百行异常, 每行都"呼吸"会变成噪音;
+ * 左缘一道信号灯条 + 红字, 在静止状态就已经足够显眼, 且不干扰扫读。
+ */
+.grid__td.bad {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.grid__td.bad-bg {
+  background: var(--signal-soft);
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+
+.grid__tr:hover .grid__td.bad-bg {
+  background: var(--signal-soft);
+}
+
+/* ---- 空态: 一个金属渐变的视觉锤 ---- */
+.empty__rule {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.empty__title {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: linear-gradient(90deg, var(--ink), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============================================================
+   4. 浮层: 控件 / 对话框 / 提示条
+   ============================================================ */
+
+/* ---- 下拉框: 只换边框与悬停, 保留 app.css 里那个内联箭头 ---- */
+.select {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+
+.select:hover {
+  border-color: var(--accent);
+}
+
+/* ---- 开关: 发光轨道 ---- */
+.switch input {
+  width: 34px;
+  height: 18px;
+  background: var(--band);
+  border: 1px solid var(--rule-strong);
+}
+
+.switch input::after {
+  width: 12px;
+  height: 12px;
+  top: 2px;
+  left: 2px;
+  background: var(--ink-3);
+}
+
+.switch input:checked {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.switch input:checked::after {
+  transform: translateX(16px);
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ---- 分段按钮 ---- */
+.scope__btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* ---- 对话框: 玻璃仪器 ---- */
+.scrim {
+  background: var(--scrim);
+}
+
+.dialog {
+  border-radius: 10px;
+  border: 1px solid var(--rule-strong);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 24px 60px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* 顶缘一道状态光 */
+.dialog::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  opacity: 0.6;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+
+.dialog__foot {
+  background: var(--band);
+  border-top: 1px solid var(--rule-strong);
+}
+
+/* ---- 提示条: 底部滑入 ---- */
+.toast {
+  border-radius: 30px;
+  background: var(--band);
+  box-shadow: 0 20px 50px -22px rgba(0, 0, 0, 0.7);
+  animation: jig-rise 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes jig-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
